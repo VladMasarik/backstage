@@ -1,5 +1,12 @@
 # @backstage/plugin-auth-backend
 
+## 0.13.0-next.2
+
+### Patch Changes
+
+- 794f7542b6: Updated openid-client from 4.1.2 to 5.1.3
+- de231e5b06: Declare oauth2 `clientSecret` with visibility secret
+
 ## 0.13.0-next.1
 
 ### Patch Changes

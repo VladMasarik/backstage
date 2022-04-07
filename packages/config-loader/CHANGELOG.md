@@ -1,5 +1,11 @@
 # @backstage/config-loader
 
+## 1.0.1-next.1
+
+### Patch Changes
+
+- 230ad0826f: Bump to using `@types/node` v16
+
 ## 1.0.1-next.0
 
 ### Patch Changes

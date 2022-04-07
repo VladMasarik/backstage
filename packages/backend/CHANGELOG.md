@@ -1,5 +1,17 @@
 # example-backend
 
+## 0.2.70-next.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/plugin-auth-backend@0.13.0-next.2
+  - @backstage/plugin-scaffolder-backend-module-rails@0.3.6-next.2
+  - @backstage/plugin-search-backend-node@0.5.3-next.1
+  - @backstage/plugin-jenkins-backend@0.1.20-next.2
+  - @backstage/plugin-techdocs-backend@1.1.0-next.2
+  - example-app@0.2.70-next.2
+
 ## 0.2.70-next.1
 
 ### Patch Changes

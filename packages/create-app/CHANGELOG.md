@@ -1,5 +1,11 @@
 # @backstage/create-app
 
+## 0.4.25-next.2
+
+### Patch Changes
+
+- 230ad0826f: Bump to using `@types/node` v16
+
 ## 0.4.25-next.1
 
 ### Patch Changes

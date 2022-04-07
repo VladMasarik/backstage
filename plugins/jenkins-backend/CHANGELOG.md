@@ -1,5 +1,11 @@
 # @backstage/plugin-jenkins-backend
 
+## 0.1.20-next.2
+
+### Patch Changes
+
+- b013de3f50: feature: provide access token to JenkinsInstanceConfig. It can be passed to other backend calls if authentication enabled. DefaultJenkinsInfoProvider sends always this token to catalog api if access token exists.
+
 ## 0.1.20-next.1
 
 ### Patch Changes

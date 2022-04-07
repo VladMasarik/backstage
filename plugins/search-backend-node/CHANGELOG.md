@@ -1,5 +1,11 @@
 # @backstage/plugin-search-backend-node
 
+## 0.5.3-next.1
+
+### Patch Changes
+
+- 230ad0826f: Bump to using `@types/node` v16
+
 ## 0.5.3-next.0
 
 ### Patch Changes
