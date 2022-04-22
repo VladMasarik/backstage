@@ -18,7 +18,7 @@ metadata:
     backstage.io/techdocs-ref: dir:.
     lighthouse.com/website-url: https://backstage.io
     snyk.io/org-name: vladimir.masarikef.com
-    snyk.io/project-ids: "982ccbb4-5cb0-4da3-a1a2-9ca59c118ded"
+    snyk.io/project-ids: "bae37f1b-aea2-4c61-a50f-7af9e83130f8 "
 spec:
   type: library
   owner: CNCF
