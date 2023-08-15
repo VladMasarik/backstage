@@ -25,6 +25,7 @@ import React, { CSSProperties, PropsWithChildren, ReactNode } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link } from '../../components/Link';
 import { Breadcrumbs } from '../Breadcrumbs';
+import { useContent } from '../Sidebar';
 
 /** @public */
 export type HeaderClassKey =
@@ -63,15 +64,16 @@ const useStyles = makeStyles<BackstageTheme>(
     },
     rightItemsBox: {
       width: 'auto',
+      alignItems: 'center',
     },
     title: {
-      color: theme.palette.bursts.fontColor,
+      color: theme.page.fontColor,
       wordBreak: 'break-word',
       fontSize: theme.typography.h3.fontSize,
       marginBottom: 0,
     },
     subtitle: {
-      color: theme.palette.bursts.fontColor,
+      color: theme.page.fontColor,
       opacity: 0.8,
       display: 'inline-block', // prevents margin collapse of adjacent siblings
       marginTop: theme.spacing(1),
@@ -82,10 +84,10 @@ const useStyles = makeStyles<BackstageTheme>(
       fontSize: 11,
       opacity: 0.8,
       marginBottom: theme.spacing(1),
-      color: theme.palette.bursts.fontColor,
+      color: theme.page.fontColor,
     },
     breadcrumb: {
-      color: theme.palette.bursts.fontColor,
+      color: theme.page.fontColor,
     },
     breadcrumbType: {
       fontSize: 'inherit',
@@ -156,8 +158,15 @@ const TypeFragment = ({
 };
 
 const TitleFragment = ({ pageTitle, classes, tooltip }: TitleFragmentProps) => {
+  const { contentRef } = useContent();
+
   const FinalTitle = (
-    <Typography className={classes.title} variant="h1">
+    <Typography
+      ref={contentRef}
+      tabIndex={-1}
+      className={classes.title}
+      variant="h1"
+    >
       {pageTitle}
     </Typography>
   );

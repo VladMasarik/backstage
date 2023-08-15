@@ -20,19 +20,20 @@ import {
   configApiRef,
   createPlugin,
   createApiFactory,
-  githubAuthApiRef,
   createRoutableExtension,
   createComponentExtension,
 } from '@backstage/core-plugin-api';
+import { scmAuthApiRef } from '@backstage/integration-react';
 
+/** @public */
 export const githubActionsPlugin = createPlugin({
   id: 'github-actions',
   apis: [
     createApiFactory({
       api: githubActionsApiRef,
-      deps: { configApi: configApiRef, githubAuthApi: githubAuthApiRef },
-      factory: ({ configApi, githubAuthApi }) =>
-        new GithubActionsClient({ configApi, githubAuthApi }),
+      deps: { configApi: configApiRef, scmAuthApi: scmAuthApiRef },
+      factory: ({ configApi, scmAuthApi }) =>
+        new GithubActionsClient({ configApi, scmAuthApi }),
     }),
   ],
   routes: {
@@ -40,6 +41,7 @@ export const githubActionsPlugin = createPlugin({
   },
 });
 
+/** @public */
 export const EntityGithubActionsContent = githubActionsPlugin.provide(
   createRoutableExtension({
     name: 'EntityGithubActionsContent',
@@ -48,6 +50,7 @@ export const EntityGithubActionsContent = githubActionsPlugin.provide(
   }),
 );
 
+/** @public */
 export const EntityLatestGithubActionRunCard = githubActionsPlugin.provide(
   createComponentExtension({
     name: 'EntityLatestGithubActionRunCard',
@@ -58,6 +61,7 @@ export const EntityLatestGithubActionRunCard = githubActionsPlugin.provide(
   }),
 );
 
+/** @public */
 export const EntityLatestGithubActionsForBranchCard =
   githubActionsPlugin.provide(
     createComponentExtension({
@@ -71,6 +75,7 @@ export const EntityLatestGithubActionsForBranchCard =
     }),
   );
 
+/** @public */
 export const EntityRecentGithubActionsRunsCard = githubActionsPlugin.provide(
   createComponentExtension({
     name: 'EntityRecentGithubActionsRunsCard',

@@ -23,10 +23,12 @@ import { FetchApi } from '@backstage/core-plugin-api';
 import { IdentityApi } from '@backstage/core-plugin-api';
 import { JsonObject } from '@backstage/types';
 import { JsonValue } from '@backstage/types';
+import { MatcherFunction } from '@testing-library/react';
 import { Observable } from '@backstage/types';
 import { PermissionApi } from '@backstage/plugin-permission-react';
 import { ReactElement } from 'react';
 import { ReactNode } from 'react';
+import { RenderOptions } from '@testing-library/react';
 import { RenderResult } from '@testing-library/react';
 import { RouteRef } from '@backstage/core-plugin-api';
 import { StorageApi } from '@backstage/core-plugin-api';
@@ -39,6 +41,11 @@ export type AsyncLogCollector = () => Promise<void>;
 export type CollectedLogs<T extends LogFuncs> = {
   [key in T]: string[];
 };
+
+// @public
+export function createTestAppWrapper(
+  options?: TestAppOptions,
+): (props: { children: ReactNode }) => JSX.Element;
 
 // @public
 export type ErrorWithContext = {
@@ -166,7 +173,9 @@ export class MockStorageApi implements StorageApi {
   // (undocumented)
   forBucket(name: string): StorageApi;
   // (undocumented)
-  observe$<T>(key: string): Observable<StorageValueSnapshot<T>>;
+  observe$<T extends JsonValue>(
+    key: string,
+  ): Observable<StorageValueSnapshot<T>>;
   // (undocumented)
   remove(key: string): Promise<void>;
   // (undocumented)
@@ -187,7 +196,10 @@ export function renderInTestApp(
 ): Promise<RenderResult>;
 
 // @public
-export function renderWithEffects(nodes: ReactElement): Promise<RenderResult>;
+export function renderWithEffects(
+  nodes: ReactElement,
+  options?: Pick<RenderOptions, 'wrapper'>,
+): Promise<RenderResult>;
 
 // @public
 export function setupRequestMockHandlers(worker: {
@@ -225,6 +237,9 @@ export type TestAppOptions = {
     [path: string]: RouteRef | ExternalRouteRef;
   };
 };
+
+// @public
+export const textContentMatcher: (text: string) => MatcherFunction;
 
 // @public
 export function withLogCollector(

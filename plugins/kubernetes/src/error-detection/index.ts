@@ -14,5 +14,10 @@
  * limitations under the License.
  */
 
-export type { DetectedError, DetectedErrorsByCluster } from './types';
+export type {
+  DetectedError,
+  DetectedErrorsByCluster,
+  ErrorSeverity,
+  ResourceRef,
+} from './types';
 export { detectErrors } from './error-detection';

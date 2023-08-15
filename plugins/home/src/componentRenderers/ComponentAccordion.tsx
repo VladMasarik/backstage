@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { SettingsModal } from '@backstage/plugin-home-react';
 import {
   Accordion,
   AccordionDetails,
@@ -27,8 +28,6 @@ import { makeStyles } from '@material-ui/core/styles';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import SettingsIcon from '@material-ui/icons/Settings';
 
-import { SettingsModal } from '../components';
-
 const useStyles = makeStyles((theme: Theme) => ({
   settingsIconButton: {
     padding: theme.spacing(0, 1, 0, 0),
@@ -39,7 +38,7 @@ const useStyles = makeStyles((theme: Theme) => ({
 }));
 
 export const ComponentAccordion = (props: {
-  title: string;
+  title?: string;
   expanded?: boolean;
   Content: () => JSX.Element;
   Actions?: () => JSX.Element;

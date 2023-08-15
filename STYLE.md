@@ -11,8 +11,8 @@ Our TypeScript style is inspired by the [style guidelines](https://github.com/Mi
 1. Use PascalCase for type names.
 1. Do not use `I` as a prefix for interface names.
 1. Use PascalCase for `enum` values.
-1. Use camelCase for function names.
-1. Use camelCase for property names and local variables.
+1. Use `camelCase` for function names.
+1. Use `camelCase` for property names and local variables.
 1. Do not use `_` as a prefix for private properties.
 1. Use whole words in names when possible.
 1. Give type parameters names prefixed with `T`, for example `Request<TBody>`.
@@ -94,6 +94,13 @@ This section describes guidelines for designing public APIs. It can also be appl
        /* ... */
      }
 
+     // In order to make a private constructor available for testing you can use a
+     // static factory marked as `@internal`, which will not show up in the public API.
+     /** @internal */
+     static forTesting(internalOptions?: { ... }) {
+       return new DefaultImageLoader(internalOptions);
+     }
+
      private constructor(/* ... */) {
        /* ... */
      }
@@ -134,6 +141,30 @@ This section describes guidelines for designing public APIs. It can also be appl
    }
    ```
 
+1. When there is a significant number of arguments to a function or method, prefer to use a single options object as the argument, rather than many positional arguments.
+
+   ```ts
+   // Bad
+   function createWidget(id: string, name: string, width: number) {}
+
+   // Good
+   function createWidget(options: CreateWidgetOptions) {}
+   ```
+
+1. Avoid arrays as return types; prefer response objects.
+
+   ```ts
+   interface UserApi {
+     // Bad
+     // Can only return Users without signaling additional information such as pagination.
+     listUsers(): Promise<User[]>;
+
+     // Good
+     // Easy to evolve with additional fields.
+     listUsers(): Promise<ListUsersResponse>;
+   }
+   ```
+
 # Documentation Guidelines
 
 We use [API Extractor](https://api-extractor.com/pages/overview/demo_docs/) to generate our documentation, which in turn uses [TSDoc](https://github.com/microsoft/tsdoc) to parse our doc comments.
@@ -146,7 +177,7 @@ There are a few things to pay attention to, in order to make the documentation s
 
 API documenter will not recognize arrow functions as functions, but rather as a constant that shows up in the list of exported variables. By declaring functions using the `function` keyword, they will show up in the list of functions. They will also get a much nicer documentation page for the individual function that shows information about parameters and return types.
 
-This also extends to React components, since API documenter doesn't have any special handling of those. By always defining exported React components using the `function` keyword, we make them show up among the list of functions in the API reference, where they are then easily discoverable through the `(props)` args (which you should be sure to include!).
+This also extends to React components, since API documenter doesn't have any special handling of those. By always defining exported React components using the `function` keyword, we make them show up among the list of functions in the API reference, where they are then easily discoverable through the `(props)` argument (which you should be sure to include!).
 
 ![image](https://user-images.githubusercontent.com/4984472/133120461-59d74c3e-ebd9-44f9-900d-cc30f54a3cd2.png)
 

@@ -15,7 +15,7 @@
  */
 
 import type { JenkinsInfo } from './jenkinsInfoProvider';
-import jenkins from 'jenkins';
+import Jenkins from 'jenkins';
 import type {
   BackstageBuild,
   BackstageProject,
@@ -28,7 +28,7 @@ import {
   PermissionEvaluator,
 } from '@backstage/plugin-permission-common';
 import { jenkinsExecutePermission } from '@backstage/plugin-jenkins-common';
-import { NotAllowedError } from '@backstage/errors';
+import fetch, { HeaderInit } from 'node-fetch';
 
 export class JenkinsApiImpl {
   private static readonly lastBuildTreeSpec = `lastBuild[
@@ -70,41 +70,49 @@ export class JenkinsApiImpl {
    * Get a list of projects for the given JenkinsInfo.
    * @see ../../../jenkins/src/api/JenkinsApi.ts#getProjects
    */
-  async getProjects(jenkinsInfo: JenkinsInfo, branch?: string) {
+  async getProjects(jenkinsInfo: JenkinsInfo, branches?: string[]) {
     const client = await JenkinsApiImpl.getClient(jenkinsInfo);
     const projects: BackstageProject[] = [];
 
-    if (branch) {
-      // we have been asked to filter to a single branch.
-      // Assume jenkinsInfo.jobFullName is a folder which contains one job per branch.
+    if (branches) {
+      // Assume jenkinsInfo.jobFullName is a MultiBranch Pipeline project which contains one job per branch.
       // TODO: extract a strategy interface for this
-      const job = await client.job.get({
-        name: `${jenkinsInfo.jobFullName}/${branch}`,
-        tree: JenkinsApiImpl.jobTreeSpec.replace(/\s/g, ''),
-      });
+      const job = await Promise.any(
+        branches.map(branch =>
+          client.job.get({
+            name: `${jenkinsInfo.jobFullName}/${encodeURIComponent(branch)}`,
+            tree: JenkinsApiImpl.jobTreeSpec.replace(/\s/g, ''),
+          }),
+        ),
+      );
       projects.push(this.augmentProject(job));
     } else {
       // We aren't filtering
-      // Assume jenkinsInfo.jobFullName is a folder which contains one job per branch.
-      const folder = await client.job.get({
+      // Assume jenkinsInfo.jobFullName is either
+      // a MultiBranch Pipeline (folder with one job per branch) project
+      // a Pipeline (standalone) project
+      const project = await client.job.get({
         name: jenkinsInfo.jobFullName,
         // Filter only be the information we need, instead of loading all fields.
         // Limit to only show the latest build for each job and only load 50 jobs
         // at all.
-        // Whitespaces are only included for readablity here and stripped out
+        // Whitespaces are only included for readability here and stripped out
         // before sending to Jenkins
         tree: JenkinsApiImpl.jobsTreeSpec.replace(/\s/g, ''),
       });
 
-      // TODO: support this being a project itself.
-      for (const jobDetails of folder.jobs) {
+      const isStandaloneProject = !project.jobs;
+      if (isStandaloneProject) {
+        const standaloneProject = await client.job.get({
+          name: jenkinsInfo.jobFullName,
+          tree: JenkinsApiImpl.jobTreeSpec.replace(/\s/g, ''),
+        });
+        projects.push(this.augmentProject(standaloneProject));
+        return projects;
+      }
+      for (const jobDetails of project.jobs) {
         // for each branch (we assume)
-        if (jobDetails?.jobs) {
-          // skipping folders inside folders for now
-          // TODO: recurse
-        } else {
-          projects.push(this.augmentProject(jobDetails));
-        }
+        projects.push(this.augmentProject(jobDetails));
       }
     }
     return projects;
@@ -136,14 +144,13 @@ export class JenkinsApiImpl {
    * Trigger a build of a project
    * @see ../../../jenkins/src/api/JenkinsApi.ts#retry
    */
-  async buildProject(
+  async rebuildProject(
     jenkinsInfo: JenkinsInfo,
     jobFullName: string,
+    buildNumber: number,
     resourceRef: string,
     options?: { token?: string },
-  ) {
-    const client = await JenkinsApiImpl.getClient(jenkinsInfo);
-
+  ): Promise<number> {
     if (this.permissionApi) {
       const response = await this.permissionApi.authorize(
         [{ permission: jenkinsExecutePermission, resourceRef }],
@@ -152,28 +159,31 @@ export class JenkinsApiImpl {
       // permission api returns always at least one item, we need to check only one result since we do not expect any additional results
       const { result } = response[0];
       if (result === AuthorizeResult.DENY) {
-        throw new NotAllowedError();
+        return 401;
       }
     }
 
-    // looks like the current SDK only supports triggering a new build
-    // can't see any support for replay (re-running the specific build with the same SCM info)
+    const buildUrl = this.getBuildUrl(jenkinsInfo, jobFullName, buildNumber);
 
-    // Note Jenkins itself has concepts of rebuild and replay on a job.
-    // The latter should be possible to trigger with a POST to /replay/rebuild
-    await client.job.build(jobFullName);
+    // the current SDK only supports triggering a new build
+    // replay the job by triggering request directly from Jenkins api
+    const response = await fetch(`${buildUrl}/replay/rebuild`, {
+      method: 'post',
+      headers: jenkinsInfo.headers as HeaderInit,
+    });
+    return response.status;
   }
 
   // private helper methods
 
   private static async getClient(jenkinsInfo: JenkinsInfo) {
     // The typings for the jenkins library are out of date so just cast to any
-    return jenkins({
+    return new (Jenkins as any)({
       baseUrl: jenkinsInfo.baseUrl,
       headers: jenkinsInfo.headers,
       promisify: true,
       crumbIssuer: jenkinsInfo.crumbIssuer,
-    }) as any;
+    });
   }
 
   private augmentProject(project: JenkinsProject): BackstageProject {
@@ -309,5 +319,14 @@ export class JenkinsApiImpl {
         };
       })
       .pop();
+  }
+
+  private getBuildUrl(
+    jenkinsInfo: JenkinsInfo,
+    jobFullName: string,
+    buildId: number,
+  ): string {
+    const jobs = jobFullName.split('/');
+    return `${jenkinsInfo.baseUrl}/job/${jobs.join('/job/')}/${buildId}`;
   }
 }

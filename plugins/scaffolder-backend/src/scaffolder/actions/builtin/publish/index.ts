@@ -18,7 +18,9 @@ export { createPublishAzureAction } from './azure';
 export { createPublishBitbucketAction } from './bitbucket';
 export { createPublishBitbucketCloudAction } from './bitbucketCloud';
 export { createPublishBitbucketServerAction } from './bitbucketServer';
-export { createPublishFileAction } from './file';
+export { createPublishBitbucketServerPullRequestAction } from './bitbucketServerPullRequest';
+export { createPublishGerritAction } from './gerrit';
+export { createPublishGerritReviewAction } from './gerritReview';
 export { createPublishGithubAction } from './github';
 export { createPublishGithubPullRequestAction } from './githubPullRequest';
 export type {

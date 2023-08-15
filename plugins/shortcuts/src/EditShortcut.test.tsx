@@ -18,9 +18,15 @@ import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { EditShortcut } from './EditShortcut';
 import { Shortcut } from './types';
-import { LocalStoredShortcuts } from './api';
-import { MockStorageApi, renderInTestApp } from '@backstage/test-utils';
+import { DefaultShortcutsApi, shortcutsApiRef } from './api';
+import {
+  MockAnalyticsApi,
+  MockStorageApi,
+  TestApiProvider,
+  renderInTestApp,
+} from '@backstage/test-utils';
 import { AlertDisplay } from '@backstage/core-components';
+import { analyticsApiRef } from '@backstage/core-plugin-api';
 
 describe('EditShortcut', () => {
   const shortcut: Shortcut = {
@@ -28,7 +34,7 @@ describe('EditShortcut', () => {
     url: '/some-url',
     title: 'some title',
   };
-  const api = new LocalStoredShortcuts(MockStorageApi.create());
+  const api = new DefaultShortcutsApi(MockStorageApi.create());
 
   const props = {
     onClose: jest.fn(),
@@ -42,13 +48,29 @@ describe('EditShortcut', () => {
   });
 
   it('displays the title', async () => {
-    await renderInTestApp(<EditShortcut {...props} />);
+    await renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [shortcutsApiRef, new DefaultShortcutsApi(MockStorageApi.create())],
+        ]}
+      >
+        <EditShortcut {...props} />
+      </TestApiProvider>,
+    );
 
     expect(screen.getByText('Edit Shortcut')).toBeInTheDocument();
   });
 
   it('closes the popup', async () => {
-    await renderInTestApp(<EditShortcut {...props} />);
+    await renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [shortcutsApiRef, new DefaultShortcutsApi(MockStorageApi.create())],
+        ]}
+      >
+        <EditShortcut {...props} />
+      </TestApiProvider>,
+    );
 
     fireEvent.click(screen.getByText('Cancel'));
     expect(props.onClose).toHaveBeenCalledTimes(1);
@@ -57,7 +79,15 @@ describe('EditShortcut', () => {
   it('updates the shortcut', async () => {
     const spy = jest.spyOn(api, 'update');
 
-    await renderInTestApp(<EditShortcut {...props} />);
+    await renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [shortcutsApiRef, new DefaultShortcutsApi(MockStorageApi.create())],
+        ]}
+      >
+        <EditShortcut {...props} />
+      </TestApiProvider>,
+    );
 
     const urlInput = screen.getByPlaceholderText('Enter a URL');
     const titleInput = screen.getByPlaceholderText('Enter a display name');
@@ -66,7 +96,7 @@ describe('EditShortcut', () => {
 
     fireEvent.click(screen.getByText('Save'));
     await waitFor(() => {
-      expect(spy).toBeCalledWith({
+      expect(spy).toHaveBeenCalledWith({
         id: 'id',
         title: 'some new title',
         url: '/some-new-url',
@@ -75,13 +105,57 @@ describe('EditShortcut', () => {
     });
   });
 
+  it('should capture analytics event', async () => {
+    const analyticsSpy = new MockAnalyticsApi();
+    const spy = jest.spyOn(api, 'update');
+
+    await renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [analyticsApiRef, analyticsSpy],
+          [shortcutsApiRef, new DefaultShortcutsApi(MockStorageApi.create())],
+        ]}
+      >
+        <EditShortcut {...props} />
+      </TestApiProvider>,
+    );
+
+    const urlInput = screen.getByPlaceholderText('Enter a URL');
+    const titleInput = screen.getByPlaceholderText('Enter a display name');
+    fireEvent.change(urlInput, { target: { value: '/some-new-url' } });
+    fireEvent.change(titleInput, { target: { value: 'some new title' } });
+
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => {
+      expect(spy).toHaveBeenCalledWith({
+        id: 'id',
+        title: 'some new title',
+        url: '/some-new-url',
+      });
+      expect(props.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    expect(analyticsSpy.getEvents()[0]).toMatchObject({
+      action: 'click',
+      subject: `Clicked 'Save' in Edit Shortcut`,
+    });
+  });
+
   it('removes the shortcut', async () => {
     const spy = jest.spyOn(api, 'remove');
 
-    await renderInTestApp(<EditShortcut {...props} />);
+    await renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [shortcutsApiRef, new DefaultShortcutsApi(MockStorageApi.create())],
+        ]}
+      >
+        <EditShortcut {...props} />
+      </TestApiProvider>,
+    );
 
     fireEvent.click(screen.getByText('Remove'));
-    expect(spy).toBeCalledWith('id');
+    expect(spy).toHaveBeenCalledWith('id');
   });
 
   it('displays errors', async () => {
@@ -95,8 +169,14 @@ describe('EditShortcut', () => {
 
     await renderInTestApp(
       <>
-        <AlertDisplay />
-        <EditShortcut {...props} />
+        <TestApiProvider
+          apis={[
+            [shortcutsApiRef, new DefaultShortcutsApi(MockStorageApi.create())],
+          ]}
+        >
+          <AlertDisplay />
+          <EditShortcut {...props} />
+        </TestApiProvider>
       </>,
     );
 

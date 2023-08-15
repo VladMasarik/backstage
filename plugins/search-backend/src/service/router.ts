@@ -15,7 +15,6 @@
  */
 
 import express from 'express';
-import Router from 'express-promise-router';
 import { Logger } from 'winston';
 import { z } from 'zod';
 import { errorHandler } from '@backstage/backend-common';
@@ -33,8 +32,9 @@ import {
   IndexableResultSet,
   SearchResultSet,
 } from '@backstage/plugin-search-common';
-import { SearchEngine } from '@backstage/plugin-search-backend-node';
+import { SearchEngine } from '@backstage/plugin-search-common';
 import { AuthorizedSearchEngine } from './AuthorizedSearchEngine';
+import { createOpenApiRouter } from '../schema/openapi.generated';
 
 const jsonObjectSchema: z.ZodSchema<JsonObject> = z.lazy(() => {
   const jsonValueSchema: z.ZodSchema<JsonValue> = z.lazy(() =>
@@ -51,6 +51,9 @@ const jsonObjectSchema: z.ZodSchema<JsonObject> = z.lazy(() => {
   return z.record(jsonValueSchema);
 });
 
+/**
+ * @public
+ */
 export type RouterOptions = {
   engine: SearchEngine;
   types: Record<string, DocumentTypeInfo>;
@@ -59,12 +62,20 @@ export type RouterOptions = {
   logger: Logger;
 };
 
+const defaultMaxPageLimit = 100;
 const allowedLocationProtocols = ['http:', 'https:'];
 
+/**
+ * @public
+ */
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
+  const router = await createOpenApiRouter();
   const { engine: inputEngine, types, permissions, config, logger } = options;
+
+  const maxPageLimit =
+    config.getOptionalNumber('search.maxPageLimit') ?? defaultMaxPageLimit;
 
   const requestSchema = z.object({
     term: z.string().default(''),
@@ -73,6 +84,15 @@ export async function createRouter(
       .array(z.string().refine(type => Object.keys(types).includes(type)))
       .optional(),
     pageCursor: z.string().optional(),
+    pageLimit: z
+      .number()
+      .refine(
+        pageLimit => pageLimit <= maxPageLimit,
+        pageLimit => ({
+          message: `The page limit "${pageLimit}" is greater than "${maxPageLimit}"`,
+        }),
+      )
+      .optional(),
   });
 
   let permissionEvaluator: PermissionEvaluator;
@@ -120,41 +140,42 @@ export async function createRouter(
     })),
   });
 
-  const router = Router();
-  router.get(
-    '/query',
-    async (req: express.Request, res: express.Response<SearchResultSet>) => {
-      const parseResult = requestSchema.safeParse(req.query);
+  router.get('/query', async (req, res) => {
+    const parseResult = requestSchema.passthrough().safeParse(req.query);
 
-      if (!parseResult.success) {
-        throw new InputError(`Invalid query string: ${parseResult.error}`);
+    if (!parseResult.success) {
+      throw new InputError(`Invalid query string: ${parseResult.error}`);
+    }
+
+    const query = parseResult.data;
+
+    logger.info(
+      `Search request received: term="${query.term}", filters=${JSON.stringify(
+        query.filters,
+      )}, types=${query.types ? query.types.join(',') : ''}, pageCursor=${
+        query.pageCursor ?? ''
+      }`,
+    );
+
+    const token = getBearerTokenFromAuthorizationHeader(
+      req.header('authorization'),
+    );
+
+    try {
+      const resultSet = await engine?.query(query, { token });
+
+      res.json(filterResultSet(toSearchResults(resultSet)));
+    } catch (error) {
+      if (error.name === 'MissingIndexError') {
+        // re-throw and let the default error handler middleware captures it and serializes it with the right response code on the standard form
+        throw error;
       }
 
-      const query = parseResult.data;
-
-      logger.info(
-        `Search request received: term="${
-          query.term
-        }", filters=${JSON.stringify(query.filters)}, types=${
-          query.types ? query.types.join(',') : ''
-        }, pageCursor=${query.pageCursor ?? ''}`,
+      throw new Error(
+        `There was a problem performing the search query: ${error.message}`,
       );
-
-      const token = getBearerTokenFromAuthorizationHeader(
-        req.header('authorization'),
-      );
-
-      try {
-        const resultSet = await engine?.query(query, { token });
-
-        res.send(filterResultSet(toSearchResults(resultSet)));
-      } catch (err) {
-        throw new Error(
-          `There was a problem performing the search query. ${err}`,
-        );
-      }
-    },
-  );
+    }
+  });
 
   router.use(errorHandler());
 

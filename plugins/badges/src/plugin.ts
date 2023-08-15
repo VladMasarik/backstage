@@ -15,25 +15,36 @@
  */
 import { badgesApiRef, BadgesClient } from './api';
 import {
+  configApiRef,
   createApiFactory,
   createComponentExtension,
   createPlugin,
+  fetchApiRef,
   discoveryApiRef,
-  identityApiRef,
 } from '@backstage/core-plugin-api';
 
+/** @public */
 export const badgesPlugin = createPlugin({
   id: 'badges',
   apis: [
     createApiFactory({
       api: badgesApiRef,
-      deps: { discoveryApi: discoveryApiRef, identityApi: identityApiRef },
-      factory: ({ discoveryApi, identityApi }) =>
-        new BadgesClient({ discoveryApi, identityApi }),
+      deps: {
+        fetchApi: fetchApiRef,
+        discoveryApi: discoveryApiRef,
+        configApi: configApiRef,
+      },
+      factory: ({ fetchApi, discoveryApi, configApi }) =>
+        new BadgesClient({
+          fetchApi,
+          discoveryApi,
+          configApi,
+        }),
     }),
   ],
 });
 
+/** @public */
 export const EntityBadgesDialog = badgesPlugin.provide(
   createComponentExtension({
     name: 'EntityBadgesDialog',

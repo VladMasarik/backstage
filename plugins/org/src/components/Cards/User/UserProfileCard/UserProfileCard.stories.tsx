@@ -21,7 +21,7 @@ import {
 } from '@backstage/plugin-catalog-react';
 import { wrapInTestApp } from '@backstage/test-utils';
 import { Grid } from '@material-ui/core';
-import React, { ComponentType } from 'react';
+import React, { ComponentType, PropsWithChildren } from 'react';
 import { UserProfileCard } from './UserProfileCard';
 
 const dummyGroup = {
@@ -94,7 +94,7 @@ export default {
   title: 'Plugins/Org/User Profile Card',
   component: UserProfileCard,
   decorators: [
-    (Story: ComponentType<{}>) =>
+    (Story: ComponentType<PropsWithChildren<{}>>) =>
       wrapInTestApp(<Story />, {
         mountedRoutes: {
           '/a': entityRouteRef,
@@ -102,3 +102,43 @@ export default {
       }),
   ],
 };
+
+const extraDetailsEntity: UserEntity = {
+  apiVersion: 'backstage.io/v1alpha1',
+  kind: 'User',
+  metadata: {
+    name: 'guest',
+    description: 'Description for guest',
+    links: [
+      {
+        url: 'slack://user?team=T00000000&id=U00000000',
+        title: 'Slack',
+        icon: 'chat',
+      },
+      {
+        url: 'https://www.google.com',
+        title: 'Google',
+      },
+    ],
+  },
+  spec: {
+    profile: {
+      displayName: 'Guest User',
+      email: 'guest@example.com',
+      picture:
+        'https://avatars.dicebear.com/api/avataaars/guest@example.com.svg?background=%23fff',
+    },
+    memberOf: ['team-a'],
+  },
+  relations: [dummyGroup],
+};
+
+export const ExtraDetails = () => (
+  <EntityProvider entity={extraDetailsEntity}>
+    <Grid container spacing={4}>
+      <Grid item xs={12} md={4}>
+        <UserProfileCard variant="gridItem" />
+      </Grid>
+    </Grid>
+  </EntityProvider>
+);

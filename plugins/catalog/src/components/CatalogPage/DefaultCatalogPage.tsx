@@ -28,16 +28,20 @@ import {
   CatalogFilterLayout,
   EntityLifecyclePicker,
   EntityListProvider,
+  EntityProcessingStatusPicker,
   EntityOwnerPicker,
   EntityTagPicker,
   EntityTypePicker,
   UserListFilterKind,
   UserListPicker,
+  EntityKindPicker,
+  EntityNamespacePicker,
+  EntityOwnerPickerProps,
 } from '@backstage/plugin-catalog-react';
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { createComponentRouteRef } from '../../routes';
 import { CatalogTable, CatalogTableRow } from '../CatalogTable';
-import { CatalogKindHeader } from '../CatalogKindHeader';
+import { useCatalogPluginOptions } from '../../options';
 
 /**
  * Props for root catalog pages.
@@ -50,6 +54,8 @@ export interface DefaultCatalogPageProps {
   actions?: TableProps<CatalogTableRow>['actions'];
   initialKind?: string;
   tableOptions?: TableProps<CatalogTableRow>['options'];
+  emptyContent?: ReactNode;
+  ownerPickerMode?: EntityOwnerPickerProps['mode'];
 }
 
 export function DefaultCatalogPage(props: DefaultCatalogPageProps) {
@@ -59,42 +65,48 @@ export function DefaultCatalogPage(props: DefaultCatalogPageProps) {
     initiallySelectedFilter = 'owned',
     initialKind = 'component',
     tableOptions = {},
+    emptyContent,
+    ownerPickerMode,
   } = props;
   const orgName =
     useApi(configApiRef).getOptionalString('organization.name') ?? 'Backstage';
   const createComponentLink = useRouteRef(createComponentRouteRef);
 
+  const { createButtonTitle } = useCatalogPluginOptions();
+
   return (
     <PageWithHeader title={`${orgName} Catalog`} themeId="home">
-      <EntityListProvider>
-        <Content>
-          <ContentHeader
-            titleComponent={<CatalogKindHeader initialFilter={initialKind} />}
-          >
-            <CreateButton
-              title="Create Component"
-              to={createComponentLink && createComponentLink()}
-            />
-            <SupportButton>All your software catalog entities</SupportButton>
-          </ContentHeader>
+      <Content>
+        <ContentHeader title="">
+          <CreateButton
+            title={createButtonTitle}
+            to={createComponentLink && createComponentLink()}
+          />
+          <SupportButton>All your software catalog entities</SupportButton>
+        </ContentHeader>
+        <EntityListProvider>
           <CatalogFilterLayout>
             <CatalogFilterLayout.Filters>
+              <EntityKindPicker initialFilter={initialKind} />
               <EntityTypePicker />
               <UserListPicker initialFilter={initiallySelectedFilter} />
-              <EntityOwnerPicker />
+              <EntityOwnerPicker mode={ownerPickerMode} />
               <EntityLifecyclePicker />
               <EntityTagPicker />
+              <EntityProcessingStatusPicker />
+              <EntityNamespacePicker />
             </CatalogFilterLayout.Filters>
             <CatalogFilterLayout.Content>
               <CatalogTable
                 columns={columns}
                 actions={actions}
                 tableOptions={tableOptions}
+                emptyContent={emptyContent}
               />
             </CatalogFilterLayout.Content>
           </CatalogFilterLayout>
-        </Content>
-      </EntityListProvider>
+        </EntityListProvider>
+      </Content>
     </PageWithHeader>
   );
 }

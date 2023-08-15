@@ -19,7 +19,6 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
-  Divider,
   Grid,
   Typography,
 } from '@material-ui/core';
@@ -29,6 +28,7 @@ import {
 } from '@backstage/plugin-kubernetes-common';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import { DeploymentsAccordions } from '../DeploymentsAccordions';
+import { StatefulSetsAccordions } from '../StatefulSetsAccordions';
 import { groupResponses } from '../../utils/response';
 import { IngressesAccordions } from '../IngressesAccordions';
 import { ServicesAccordions } from '../ServicesAccordions';
@@ -41,7 +41,7 @@ import {
 } from '../../hooks';
 
 import { StatusError, StatusOK } from '@backstage/core-components';
-import { PodNamesWithMetricsContext } from '../../hooks/PodNamesWithMetrics';
+import { PodMetricsContext } from '../../hooks/usePodMetrics';
 
 type ClusterSummaryProps = {
   clusterName: string;
@@ -59,11 +59,12 @@ const ClusterSummary = ({
     <Grid
       container
       direction="row"
-      justifyContent="flex-start"
+      justifyContent="space-between"
       alignItems="flex-start"
+      spacing={0}
     >
       <Grid
-        xs={4}
+        xs={6}
         item
         container
         direction="column"
@@ -72,14 +73,11 @@ const ClusterSummary = ({
         spacing={0}
       >
         <Grid item xs>
-          <Typography variant="h3">{clusterName}</Typography>
-          <Typography color="textSecondary" variant="body1">
+          <Typography variant="body1">{clusterName}</Typography>
+          <Typography color="textSecondary" variant="subtitle1">
             Cluster
           </Typography>
         </Grid>
-      </Grid>
-      <Grid item xs={1}>
-        <Divider style={{ height: '4em' }} orientation="vertical" />
       </Grid>
       <Grid
         item
@@ -87,7 +85,8 @@ const ClusterSummary = ({
         xs={3}
         direction="column"
         justifyContent="flex-start"
-        alignItems="flex-start"
+        alignItems="flex-end"
+        spacing={0}
       >
         <Grid item>
           <StatusOK>{totalNumberOfPods} pods</StatusOK>
@@ -112,19 +111,13 @@ type ClusterProps = {
 
 export const Cluster = ({ clusterObjects, podsWithErrors }: ClusterProps) => {
   const groupedResponses = groupResponses(clusterObjects.resources);
-  const podNameToMetrics = clusterObjects.podMetrics
-    .flat()
-    .reduce((accum, next) => {
-      const name = next.pod.metadata?.name;
-      if (name !== undefined) {
-        accum.set(name, next);
-      }
-      return accum;
-    }, new Map<string, ClientPodStatus>());
+
+  const podMetricsMap = new Map<string, ClientPodStatus[]>();
+  podMetricsMap.set(clusterObjects.cluster.name, clusterObjects.podMetrics);
   return (
     <ClusterContext.Provider value={clusterObjects.cluster}>
       <GroupedResponsesContext.Provider value={groupedResponses}>
-        <PodNamesWithMetricsContext.Provider value={podNameToMetrics}>
+        <PodMetricsContext.Provider value={podMetricsMap}>
           <PodNamesWithErrorsContext.Provider value={podsWithErrors}>
             <Accordion TransitionProps={{ unmountOnExit: true }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -136,26 +129,41 @@ export const Cluster = ({ clusterObjects, podsWithErrors }: ClusterProps) => {
               </AccordionSummary>
               <AccordionDetails>
                 <Grid container direction="column">
-                  <Grid item>
-                    <CustomResources />
-                  </Grid>
-                  <Grid item>
-                    <DeploymentsAccordions />
-                  </Grid>
-                  <Grid item>
-                    <IngressesAccordions />
-                  </Grid>
-                  <Grid item>
-                    <ServicesAccordions />
-                  </Grid>
-                  <Grid item>
-                    <CronJobsAccordions />
-                  </Grid>
+                  {groupedResponses.customResources.length > 0 ? (
+                    <Grid item>
+                      <CustomResources />
+                    </Grid>
+                  ) : undefined}
+                  {groupedResponses.deployments.length > 0 ? (
+                    <Grid item>
+                      <DeploymentsAccordions />
+                    </Grid>
+                  ) : undefined}
+                  {groupedResponses.statefulsets.length > 0 ? (
+                    <Grid item>
+                      <StatefulSetsAccordions />
+                    </Grid>
+                  ) : undefined}
+                  {groupedResponses.ingresses.length > 0 ? (
+                    <Grid item>
+                      <IngressesAccordions />
+                    </Grid>
+                  ) : undefined}
+                  {groupedResponses.services.length > 0 ? (
+                    <Grid item>
+                      <ServicesAccordions />
+                    </Grid>
+                  ) : undefined}
+                  {groupedResponses.cronJobs.length > 0 ? (
+                    <Grid item>
+                      <CronJobsAccordions />
+                    </Grid>
+                  ) : undefined}
                 </Grid>
               </AccordionDetails>
             </Accordion>
           </PodNamesWithErrorsContext.Provider>
-        </PodNamesWithMetricsContext.Provider>
+        </PodMetricsContext.Provider>
       </GroupedResponsesContext.Provider>
     </ClusterContext.Provider>
   );

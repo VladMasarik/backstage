@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { RESOURCE_TYPE_CATALOG_ENTITY } from '@backstage/plugin-catalog-common';
+import { RESOURCE_TYPE_CATALOG_ENTITY } from '@backstage/plugin-catalog-common/alpha';
 import { createPermission } from '@backstage/plugin-permission-common';
 
 /**
@@ -28,3 +28,10 @@ export const jenkinsExecutePermission = createPermission({
   },
   resourceType: RESOURCE_TYPE_CATALOG_ENTITY,
 });
+
+/**
+ * List of all Jenkins permissions
+ *
+ * @public
+ */
+export const jenkinsPermissions = [jenkinsExecutePermission];

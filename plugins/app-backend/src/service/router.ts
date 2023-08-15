@@ -40,6 +40,7 @@ import {
 // express uses mime v1 while we only have types for mime v2
 type Mime = { lookup(arg0: string): string };
 
+/** @public */
 export interface RouterOptions {
   config: Config;
   logger: Logger;
@@ -85,25 +86,35 @@ export interface RouterOptions {
   disableConfigInjection?: boolean;
 }
 
+/** @public */
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
   const { config, logger, appPackageName, staticFallbackHandler } = options;
 
+  const disableConfigInjection =
+    options.disableConfigInjection ??
+    config.getOptionalBoolean('app.disableConfigInjection');
+  const disableStaticFallbackCache = config.getOptionalBoolean(
+    'app.disableStaticFallbackCache',
+  );
+
   const appDistDir = resolvePackagePath(appPackageName, 'dist');
   const staticDir = resolvePath(appDistDir, 'static');
 
   if (!(await fs.pathExists(staticDir))) {
-    logger.warn(
-      `Can't serve static app content from ${staticDir}, directory doesn't exist`,
-    );
+    if (process.env.NODE_ENV === 'production') {
+      logger.error(
+        `Can't serve static app content from ${staticDir}, directory doesn't exist`,
+      );
+    }
 
     return Router();
   }
 
   logger.info(`Serving static app content from ${appDistDir}`);
 
-  if (!options.disableConfigInjection) {
+  if (!disableConfigInjection) {
     const appConfigs = await readConfigs({
       config,
       appDistDir,
@@ -127,10 +138,10 @@ export async function createRouter(
     }),
   );
 
-  if (options.database) {
+  if (options.database && !disableStaticFallbackCache) {
     const store = await StaticAssetsStore.create({
       logger,
-      database: await options.database.getClient(),
+      database: options.database,
     });
 
     const assets = await findStaticAssets(staticDir);

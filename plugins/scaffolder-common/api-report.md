@@ -4,9 +4,17 @@
 
 ```ts
 import { Entity } from '@backstage/catalog-model';
+import type { EntityMeta } from '@backstage/catalog-model';
+import type { JsonArray } from '@backstage/types';
 import { JsonObject } from '@backstage/types';
-import { JsonValue } from '@backstage/types';
+import type { JsonValue } from '@backstage/types';
 import { KindValidator } from '@backstage/catalog-model';
+import type { UserEntity } from '@backstage/catalog-model';
+
+// @public
+export const isTemplateEntityV1beta3: (
+  entity: Entity,
+) => entity is TemplateEntityV1beta3;
 
 // @public
 export type TaskSpec = TaskSpecV1beta3;
@@ -20,15 +28,36 @@ export interface TaskSpecV1beta3 {
   parameters: JsonObject;
   steps: TaskStep[];
   templateInfo?: TemplateInfo;
+  user?: {
+    entity?: UserEntity;
+    ref?: string;
+  };
 }
 
 // @public
 export interface TaskStep {
   action: string;
+  each?: string | JsonArray;
   id: string;
   if?: string | boolean;
   input?: JsonObject;
   name: string;
+}
+
+// @public
+export interface TemplateEntityStepV1beta3 extends JsonObject {
+  // (undocumented)
+  'backstage:permissions'?: TemplatePermissionsV1beta3;
+  // (undocumented)
+  action: string;
+  // (undocumented)
+  id?: string;
+  // (undocumented)
+  if?: string | boolean;
+  // (undocumented)
+  input?: JsonObject;
+  // (undocumented)
+  name?: string;
 }
 
 // @public
@@ -37,14 +66,8 @@ export interface TemplateEntityV1beta3 extends Entity {
   kind: 'Template';
   spec: {
     type: string;
-    parameters?: JsonObject | JsonObject[];
-    steps: Array<{
-      id?: string;
-      name?: string;
-      action: string;
-      input?: JsonObject;
-      if?: string | boolean;
-    }>;
+    parameters?: TemplateParametersV1beta3 | TemplateParametersV1beta3[];
+    steps: Array<TemplateEntityStepV1beta3>;
     output?: {
       [name: string]: string;
     };
@@ -59,5 +82,20 @@ export const templateEntityV1beta3Validator: KindValidator;
 export type TemplateInfo = {
   entityRef: string;
   baseUrl?: string;
+  entity?: {
+    metadata: EntityMeta;
+  };
 };
+
+// @public
+export interface TemplateParametersV1beta3 extends JsonObject {
+  // (undocumented)
+  'backstage:permissions'?: TemplatePermissionsV1beta3;
+}
+
+// @public
+export interface TemplatePermissionsV1beta3 extends JsonObject {
+  // (undocumented)
+  tags?: string[];
+}
 ```

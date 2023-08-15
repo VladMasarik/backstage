@@ -24,7 +24,7 @@ Settings for local development:
 
 - Application name: Backstage (or your custom app name)
 - Homepage URL: `http://localhost:3000`
-- Authorization callback URL: `http://localhost:7007/api/auth/github`
+- Authorization callback URL: `http://localhost:7007/api/auth/github/handler/frame`
 
 ## Configuration
 
@@ -50,7 +50,7 @@ The GitHub provider is a structure with three configuration keys:
 - `clientSecret`: The client secret tied to the generated client ID.
 - `enterpriseInstanceUrl` (optional): The base URL for a GitHub Enterprise
   instance, e.g. `https://ghe.<company>.com`. Only needed for GitHub Enterprise.
-- `callbackUrl` (optional): The callback url that GitHub will use when
+- `callbackUrl` (optional): The callback URL that GitHub will use when
   initiating an OAuth flow, e.g.
   `https://your-intermediate-service.com/handler`. Only needed if Backstage is
   not the immediate receiver (e.g. one OAuth app for many backstage instances).

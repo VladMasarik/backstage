@@ -19,33 +19,32 @@ import {
   Content,
   DocsIcon,
   Header,
-  Lifecycle,
   Page,
-  SidebarPinStateContext,
+  useSidebarPinState,
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { CatalogSearchResultListItem } from '@backstage/plugin-catalog';
+import { CatalogSearchResultListItem } from '@internal/plugin-catalog-customized';
 import {
   catalogApiRef,
   CATALOG_FILTER_EXISTS,
 } from '@backstage/plugin-catalog-react';
+import { AdrSearchResultListItem } from '@backstage/plugin-adr';
+import { SearchType } from '@backstage/plugin-search';
 import {
-  DefaultResultListItem,
   SearchBar,
   SearchFilter,
+  SearchPagination,
   SearchResult,
   SearchResultPager,
-  SearchType,
-} from '@backstage/plugin-search';
-import { useSearch } from '@backstage/plugin-search-react';
+  useSearch,
+} from '@backstage/plugin-search-react';
 import { TechDocsSearchResultListItem } from '@backstage/plugin-techdocs';
-import { Grid, List, makeStyles, Paper, Theme } from '@material-ui/core';
-import React, { useContext } from 'react';
+import { Grid, makeStyles, Paper, Theme } from '@material-ui/core';
+import React from 'react';
+import { ToolSearchResultListItem } from '@backstage/plugin-explore';
+import BuildIcon from '@material-ui/icons/Build';
 
 const useStyles = makeStyles((theme: Theme) => ({
-  bar: {
-    padding: theme.spacing(1, 0),
-  },
   filter: {
     '& + &': {
       marginTop: theme.spacing(2.5),
@@ -59,25 +58,24 @@ const useStyles = makeStyles((theme: Theme) => ({
 
 const SearchPage = () => {
   const classes = useStyles();
-  const { isMobile } = useContext(SidebarPinStateContext);
+  const { isMobile } = useSidebarPinState();
   const { types } = useSearch();
   const catalogApi = useApi(catalogApiRef);
 
   return (
     <Page themeId="home">
-      {!isMobile && <Header title="Search" subtitle={<Lifecycle alpha />} />}
+      {!isMobile && <Header title="Search" />}
       <Content>
         <Grid container direction="row">
           <Grid item xs={12}>
-            <Paper className={classes.bar}>
-              <SearchBar debounceTime={100} />
-            </Paper>
+            <SearchBar debounceTime={100} />
           </Grid>
           {!isMobile && (
             <Grid item xs={3}>
               <SearchType.Accordion
                 name="Result Type"
                 defaultValue="software-catalog"
+                showCounts
                 types={[
                   {
                     value: 'software-catalog',
@@ -87,6 +85,11 @@ const SearchPage = () => {
                   {
                     value: 'techdocs',
                     name: 'Documentation',
+                    icon: <DocsIcon />,
+                  },
+                  {
+                    value: 'adr',
+                    name: 'Architecture Decision Records',
                     icon: <DocsIcon />,
                   },
                 ]}
@@ -129,36 +132,12 @@ const SearchPage = () => {
             </Grid>
           )}
           <Grid item xs>
+            <SearchPagination />
             <SearchResult>
-              {({ results }) => (
-                <List>
-                  {results.map(({ type, document }) => {
-                    switch (type) {
-                      case 'software-catalog':
-                        return (
-                          <CatalogSearchResultListItem
-                            key={document.location}
-                            result={document}
-                          />
-                        );
-                      case 'techdocs':
-                        return (
-                          <TechDocsSearchResultListItem
-                            key={document.location}
-                            result={document}
-                          />
-                        );
-                      default:
-                        return (
-                          <DefaultResultListItem
-                            key={document.location}
-                            result={document}
-                          />
-                        );
-                    }
-                  })}
-                </List>
-              )}
+              <CatalogSearchResultListItem icon={<CatalogIcon />} />
+              <TechDocsSearchResultListItem icon={<DocsIcon />} />
+              <ToolSearchResultListItem icon={<BuildIcon />} />
+              <AdrSearchResultListItem icon={<DocsIcon />} />
             </SearchResult>
             <SearchResultPager />
           </Grid>

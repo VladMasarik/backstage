@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import { Entity } from '@backstage/catalog-model';
-import { readGitHubIntegrationConfigs } from '@backstage/integration';
 import {
   Accordion,
   AccordionDetails,
@@ -22,7 +22,6 @@ import {
   Box,
   CircularProgress,
   LinearProgress,
-  Link as MaterialLink,
   ListItemText,
   makeStyles,
   Paper,
@@ -44,9 +43,8 @@ import { WorkflowRunStatus } from '../WorkflowRunStatus';
 import { useWorkflowRunJobs } from './useWorkflowRunJobs';
 import { useWorkflowRunsDetails } from './useWorkflowRunsDetails';
 import { WorkflowRunLogs } from '../WorkflowRunLogs';
-
-import { configApiRef, useApi } from '@backstage/core-plugin-api';
 import { Breadcrumbs, Link } from '@backstage/core-components';
+import { getHostnameFromEntity } from '../getHostnameFromEntity';
 
 const useStyles = makeStyles<Theme>(theme => ({
   root: {
@@ -73,7 +71,10 @@ const useStyles = makeStyles<Theme>(theme => ({
   },
 }));
 
-const getElapsedTime = (start: string, end: string) => {
+const getElapsedTime = (start: string | undefined, end: string | undefined) => {
+  if (!start || !end) {
+    return '';
+  }
   const startDate = DateTime.fromISO(start);
   const endDate = end ? DateTime.fromISO(end) : DateTime.now();
   const diff = endDate.diff(startDate);
@@ -114,8 +115,6 @@ const JobListItem = ({
     <Accordion TransitionProps={{ unmountOnExit: true }} className={className}>
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}
-        aria-controls={`panel-${name}-content`}
-        id={`panel-${name}-header`}
         IconButtonProps={{
           className: classes.button,
         }}
@@ -127,7 +126,7 @@ const JobListItem = ({
       <AccordionDetails className={classes.accordionDetails}>
         <TableContainer>
           <Table>
-            {job.steps.map(step => (
+            {job.steps?.map(step => (
               <StepView key={step.number} step={step} />
             ))}
           </Table>
@@ -163,13 +162,9 @@ const JobsList = ({ jobs, entity }: { jobs?: Jobs; entity: Entity }) => {
 };
 
 export const WorkflowRunDetails = ({ entity }: { entity: Entity }) => {
-  const config = useApi(configApiRef);
   const projectName = getProjectNameFromEntity(entity);
 
-  // TODO: Get github hostname from metadata annotation
-  const hostname = readGitHubIntegrationConfigs(
-    config.getOptionalConfigArray('integrations.github') ?? [],
-  )[0].host;
+  const hostname = getHostnameFromEntity(entity);
   const [owner, repo] = (projectName && projectName.split('/')) || [];
   const details = useWorkflowRunsDetails({ hostname, owner, repo });
   const jobs = useWorkflowRunJobs({ hostname, owner, repo });
@@ -243,10 +238,10 @@ export const WorkflowRunDetails = ({ entity }: { entity: Entity }) => {
               </TableCell>
               <TableCell>
                 {details.value?.html_url && (
-                  <MaterialLink target="_blank" href={details.value.html_url}>
+                  <Link to={details.value.html_url}>
                     Workflow runs on GitHub{' '}
                     <ExternalLinkIcon className={classes.externalLinkIcon} />
-                  </MaterialLink>
+                  </Link>
                 )}
               </TableCell>
             </TableRow>

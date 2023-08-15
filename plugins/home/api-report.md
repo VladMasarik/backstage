@@ -6,13 +6,34 @@
 /// <reference types="react" />
 
 import { BackstagePlugin } from '@backstage/core-plugin-api';
-import { Extension } from '@backstage/core-plugin-api';
+import { CardConfig as CardConfig_2 } from '@backstage/plugin-home-react';
+import { CardExtensionProps as CardExtensionProps_2 } from '@backstage/plugin-home-react';
+import { CardLayout as CardLayout_2 } from '@backstage/plugin-home-react';
+import { CardSettings as CardSettings_2 } from '@backstage/plugin-home-react';
+import { ComponentParts as ComponentParts_2 } from '@backstage/plugin-home-react';
+import { ComponentRenderer as ComponentRenderer_2 } from '@backstage/plugin-home-react';
+import { createCardExtension as createCardExtension_2 } from '@backstage/plugin-home-react';
 import { default as React_2 } from 'react';
+import { ReactElement } from 'react';
 import { ReactNode } from 'react';
+import { RendererProps as RendererProps_2 } from '@backstage/plugin-home-react';
 import { RouteRef } from '@backstage/core-plugin-api';
 
-// Warning: (ae-missing-release-tag) "ClockConfig" is exported by the package, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
+// @public
+export type Breakpoint = 'xxs' | 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+// @public @deprecated (undocumented)
+export type CardConfig = CardConfig_2;
+
+// @public @deprecated (undocumented)
+export type CardExtensionProps<T> = CardExtensionProps_2<T>;
+
+// @public @deprecated (undocumented)
+export type CardLayout = CardLayout_2;
+
+// @public @deprecated (undocumented)
+export type CardSettings = CardSettings_2;
+
 // @public (undocumented)
 export type ClockConfig = {
   label: string;
@@ -21,7 +42,7 @@ export type ClockConfig = {
 
 // @public (undocumented)
 export const ComponentAccordion: (props: {
-  title: string;
+  title?: string | undefined;
   expanded?: boolean | undefined;
   Content: () => JSX.Element;
   Actions?: (() => JSX.Element) | undefined;
@@ -29,10 +50,11 @@ export const ComponentAccordion: (props: {
   ContextProvider?: ((props: any) => JSX.Element) | undefined;
 }) => JSX.Element;
 
-// @public (undocumented)
-export type ComponentRenderer = {
-  Renderer?: (props: RendererProps) => JSX.Element;
-};
+// @public @deprecated (undocumented)
+export type ComponentParts = ComponentParts_2;
+
+// @public @deprecated (undocumented)
+export type ComponentRenderer = ComponentRenderer_2;
 
 // @public (undocumented)
 export const ComponentTab: (props: {
@@ -50,18 +72,34 @@ export const ComponentTabs: (props: {
   }[];
 }) => JSX.Element;
 
-// Warning: (ae-forgotten-export) The symbol "CardExtensionProps" needs to be exported by the entry point index.d.ts
-//
-// @public
-export function createCardExtension<T>(options: {
-  title: string;
-  components: () => Promise<ComponentParts>;
-  name?: string;
-}): Extension<(props: CardExtensionProps<T>) => JSX.Element>;
+// @public @deprecated (undocumented)
+export const createCardExtension: typeof createCardExtension_2;
 
-// @public (undocumented)
+// @public
+export const CustomHomepageGrid: (
+  props: CustomHomepageGridProps,
+) => JSX.Element;
+
+// @public
+export type CustomHomepageGridProps = {
+  children?: ReactNode;
+  config?: LayoutConfiguration[];
+  rowHeight?: number;
+  breakpoints?: Record<Breakpoint, number>;
+  cols?: Record<Breakpoint, number>;
+  containerPadding?: [number, number] | Record<Breakpoint, [number, number]>;
+  containerMargin?: [number, number] | Record<Breakpoint, [number, number]>;
+  maxRows?: number;
+  style?: React_2.CSSProperties;
+  compactType?: 'vertical' | 'horizontal' | null;
+  allowOverlap?: boolean;
+  preventCollision?: boolean;
+};
+
+// @public
 export const HeaderWorldClock: (props: {
   clockConfigs: ClockConfig[];
+  customTimeFormat?: Intl.DateTimeFormatOptions | undefined;
 }) => JSX.Element | null;
 
 // @public
@@ -78,27 +116,19 @@ export const HomepageCompositionRoot: (props: {
 
 // @public (undocumented)
 export const HomePageRandomJoke: (
-  props: ComponentRenderer & {
-    title?: string | undefined;
-  } & {
+  props: CardExtensionProps_2<{
     defaultCategory?: 'any' | 'programming' | undefined;
-  },
+  }>,
 ) => JSX.Element;
 
 // @public
 export const HomePageStarredEntities: (
-  props: ComponentRenderer & {
-    title?: string | undefined;
-  },
+  props: CardExtensionProps_2<unknown>,
 ) => JSX.Element;
 
-// Warning: (ae-forgotten-export) The symbol "ToolkitContentProps" needs to be exported by the entry point index.d.ts
-//
 // @public
 export const HomePageToolkit: (
-  props: ComponentRenderer & {
-    title?: string | undefined;
-  } & ToolkitContentProps,
+  props: CardExtensionProps_2<ToolkitContentProps>,
 ) => JSX.Element;
 
 // @public (undocumented)
@@ -106,37 +136,60 @@ export const homePlugin: BackstagePlugin<
   {
     root: RouteRef<undefined>;
   },
+  {},
   {}
 >;
 
-// Warning: (ae-missing-release-tag) "SettingsModal" is exported by the package, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public (undocumented)
+// @public
+export type LayoutConfiguration = {
+  component: ReactElement | string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+// @public @deprecated (undocumented)
+export type RendererProps = RendererProps_2;
+
+// @public @deprecated (undocumented)
 export const SettingsModal: (props: {
   open: boolean;
   close: Function;
-  componentName: string;
+  componentName?: string | undefined;
   children: JSX.Element;
 }) => JSX.Element;
 
-// Warning: (ae-forgotten-export) The symbol "TemplateBackstageLogoProps" needs to be exported by the entry point index.d.ts
-// Warning: (ae-missing-release-tag) "TemplateBackstageLogo" is exported by the package, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
 // @public (undocumented)
-export const TemplateBackstageLogo: (
-  props: TemplateBackstageLogoProps,
-) => JSX.Element;
+export const TemplateBackstageLogo: (props: {
+  classes: {
+    svg: string;
+    path: string;
+  };
+}) => JSX.Element;
 
-// Warning: (ae-missing-release-tag) "TemplateBackstageLogoIcon" is exported by the package, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
 // @public (undocumented)
 export const TemplateBackstageLogoIcon: () => JSX.Element;
 
-// @public
-export const WelcomeTitle: () => JSX.Element;
+// @public (undocumented)
+export type Tool = {
+  label: string;
+  url: string;
+  icon: React_2.ReactNode;
+};
 
-// Warnings were encountered during analysis:
-//
-// src/extensions.d.ts:6:5 - (ae-forgotten-export) The symbol "RendererProps" needs to be exported by the entry point index.d.ts
-// src/extensions.d.ts:27:5 - (ae-forgotten-export) The symbol "ComponentParts" needs to be exported by the entry point index.d.ts
+// @public
+export type ToolkitContentProps = {
+  tools: Tool[];
+};
+
+// @public
+export const WelcomeTitle: ({
+  language,
+}: WelcomeTitleLanguageProps) => JSX.Element;
+
+// @public (undocumented)
+export type WelcomeTitleLanguageProps = {
+  language?: string[];
+};
 ```

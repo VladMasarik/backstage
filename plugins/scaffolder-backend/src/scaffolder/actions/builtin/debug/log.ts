@@ -16,7 +16,10 @@
 
 import { readdir, stat } from 'fs-extra';
 import { relative, join } from 'path';
-import { createTemplateAction } from '../../createTemplateAction';
+import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
+import { examples } from './log.examples';
+
+const id = 'debug:log';
 
 /**
  * Writes a message into the log or lists all files in the workspace
@@ -30,9 +33,10 @@ import { createTemplateAction } from '../../createTemplateAction';
  */
 export function createDebugLogAction() {
   return createTemplateAction<{ message?: string; listWorkspace?: boolean }>({
-    id: 'debug:log',
+    id,
     description:
       'Writes a message into the log or lists all files in the workspace.',
+    examples,
     schema: {
       input: {
         type: 'object',
@@ -51,6 +55,7 @@ export function createDebugLogAction() {
         },
       },
     },
+    supportsDryRun: true,
     async handler(ctx) {
       ctx.logger.info(JSON.stringify(ctx.input, null, 2));
 

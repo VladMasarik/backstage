@@ -16,6 +16,7 @@
 
 import express from 'express';
 import passport from 'passport';
+import { OAuth2Client } from 'google-auth-library';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import {
   encodeState,
@@ -27,6 +28,7 @@ import {
   OAuthResponse,
   OAuthResult,
   OAuthStartRequest,
+  OAuthLogoutRequest,
 } from '../../lib/oauth';
 import {
   executeFetchUserProfileStrategy,
@@ -39,11 +41,14 @@ import {
 import {
   AuthHandler,
   AuthResolverContext,
-  RedirectInfo,
+  OAuthStartResponse,
   SignInResolver,
 } from '../types';
 import { createAuthProviderIntegration } from '../createAuthProviderIntegration';
-import { commonByEmailLocalPartResolver } from '../resolvers';
+import {
+  commonByEmailLocalPartResolver,
+  commonByEmailResolver,
+} from '../resolvers';
 
 type PrivateInfo = {
   refreshToken: string;
@@ -70,9 +75,7 @@ export class GoogleAuthProvider implements OAuthHandlers {
         clientID: options.clientId,
         clientSecret: options.clientSecret,
         callbackURL: options.callbackUrl,
-        // We need passReqToCallback set to false to get params, but there's
-        // no matching type signature for that, so instead behold this beauty
-        passReqToCallback: false as true,
+        passReqToCallback: false,
       },
       (
         accessToken: any,
@@ -97,7 +100,7 @@ export class GoogleAuthProvider implements OAuthHandlers {
     );
   }
 
-  async start(req: OAuthStartRequest): Promise<RedirectInfo> {
+  async start(req: OAuthStartRequest): Promise<OAuthStartResponse> {
     return await executeRedirectStrategy(req, this.strategy, {
       accessType: 'offline',
       prompt: 'consent',
@@ -116,6 +119,11 @@ export class GoogleAuthProvider implements OAuthHandlers {
       response: await this.handleResult(result),
       refreshToken: privateInfo.refreshToken,
     };
+  }
+
+  async logout(req: OAuthLogoutRequest) {
+    const oauthClient = new OAuth2Client();
+    await oauthClient.revokeToken(req.refreshToken);
   }
 
   async refresh(req: OAuthRefreshRequest) {
@@ -168,28 +176,6 @@ export class GoogleAuthProvider implements OAuthHandlers {
 }
 
 /**
- * @public
- * @deprecated This type has been inlined into the create method and will be removed.
- */
-export type GoogleProviderOptions = {
-  /**
-   * The profile transformation function used to verify and convert the auth response
-   * into the profile that will be presented to the user.
-   */
-  authHandler?: AuthHandler<OAuthResult>;
-
-  /**
-   * Configure sign-in for this provider, without it the provider can not be used to sign users in.
-   */
-  signIn?: {
-    /**
-     * Maps an auth result to a Backstage identity for the user.
-     */
-    resolver: SignInResolver<OAuthResult>;
-  };
-};
-
-/**
  * Auth provider integration for Google auth
  *
  * @public
@@ -237,7 +223,6 @@ export const google = createAuthProviderIntegration({
         });
 
         return OAuthAdapter.fromConfig(globalConfig, provider, {
-          disableRefresh: false,
           providerId,
           callbackUrl,
         });
@@ -248,6 +233,10 @@ export const google = createAuthProviderIntegration({
      * Looks up the user by matching their email local part to the entity name.
      */
     emailLocalPartMatchingUserEntityName: () => commonByEmailLocalPartResolver,
+    /**
+     * Looks up the user by matching their email to the entity email.
+     */
+    emailMatchingUserEntityProfileEmail: () => commonByEmailResolver,
     /**
      * Looks up the user by matching their email to the `google.com/email` annotation.
      */
@@ -268,16 +257,3 @@ export const google = createAuthProviderIntegration({
     },
   },
 });
-
-/**
- * @public
- * @deprecated Use `providers.google.create` instead.
- */
-export const createGoogleProvider = google.create;
-
-/**
- * @public
- * @deprecated Use `providers.google.resolvers.emailMatchingUserEntityAnnotation()` instead.
- */
-export const googleEmailSignInResolver =
-  google.resolvers.emailMatchingUserEntityAnnotation();

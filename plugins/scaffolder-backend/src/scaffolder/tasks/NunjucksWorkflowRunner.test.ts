@@ -22,8 +22,20 @@ import { NunjucksWorkflowRunner } from './NunjucksWorkflowRunner';
 import { TemplateActionRegistry } from '../actions';
 import { ScmIntegrations } from '@backstage/integration';
 import { ConfigReader } from '@backstage/config';
-import { TaskContext, TaskSecrets } from './types';
+import { TaskContext } from './types';
 import { TaskSpec } from '@backstage/plugin-scaffolder-common';
+import {
+  createTemplateAction,
+  TaskSecrets,
+  TemplateAction,
+} from '@backstage/plugin-scaffolder-node';
+import { UserEntity } from '@backstage/catalog-model';
+import { z } from 'zod';
+import {
+  AuthorizeResult,
+  PermissionEvaluator,
+} from '@backstage/plugin-permission-common';
+import { RESOURCE_TYPE_SCAFFOLDER_ACTION } from '@backstage/plugin-scaffolder-common/alpha';
 
 // The Stream module is lazy loaded, so make sure it's in the module cache before mocking fs
 void winston.transports.Stream;
@@ -44,6 +56,10 @@ describe('DefaultWorkflowRunner', () => {
   let runner: NunjucksWorkflowRunner;
   let fakeActionHandler: jest.Mock;
 
+  const mockedPermissionApi: jest.Mocked<PermissionEvaluator> = {
+    authorizeConditional: jest.fn(),
+  } as unknown as jest.Mocked<PermissionEvaluator>;
+
   const integrations = ScmIntegrations.fromConfig(
     new ConfigReader({
       integrations: {
@@ -55,17 +71,20 @@ describe('DefaultWorkflowRunner', () => {
   const createMockTaskWithSpec = (
     spec: TaskSpec,
     secrets?: TaskSecrets,
+    isDryRun?: boolean,
   ): TaskContext => ({
     spec,
     secrets,
+    isDryRun,
     complete: async () => {},
     done: false,
     emitLog: async () => {},
+    cancelSignal: new AbortController().signal,
     getWorkspaceName: () => Promise.resolve('test-workspace'),
   });
 
   beforeEach(() => {
-    winston.format.simple(); // put logform the require cache before mocking fs
+    winston.format.simple(); // put logform in the require.cache before mocking fs
     mockFs({
       '/tmp': mockFs.directory(),
       ...realFiles,
@@ -84,6 +103,7 @@ describe('DefaultWorkflowRunner', () => {
     actionRegistry.register({
       id: 'jest-validated-action',
       description: 'Mock action for testing',
+      supportsDryRun: true,
       handler: fakeActionHandler,
       schema: {
         input: {
@@ -98,6 +118,20 @@ describe('DefaultWorkflowRunner', () => {
       },
     });
 
+    actionRegistry.register(
+      createTemplateAction({
+        id: 'jest-zod-validated-action',
+        description: 'Mock action for testing',
+        handler: fakeActionHandler,
+        supportsDryRun: true,
+        schema: {
+          input: z.object({
+            foo: z.number(),
+          }),
+        },
+      }) as TemplateAction,
+    );
+
     actionRegistry.register({
       id: 'output-action',
       description: 'Mock action for testing',
@@ -107,11 +141,16 @@ describe('DefaultWorkflowRunner', () => {
       },
     });
 
+    mockedPermissionApi.authorizeConditional.mockResolvedValue([
+      { result: AuthorizeResult.ALLOW },
+    ]);
+
     runner = new NunjucksWorkflowRunner({
       actionRegistry,
       integrations,
       workingDirectory: '/tmp',
       logger,
+      permissions: mockedPermissionApi,
     });
   });
 
@@ -127,7 +166,7 @@ describe('DefaultWorkflowRunner', () => {
       steps: [{ id: 'test', name: 'name', action: 'does-not-exist' }],
     });
 
-    await expect(runner.execute(task)).rejects.toThrowError(
+    await expect(runner.execute(task)).rejects.toThrow(
       "Template action with ID 'does-not-exist' is not registered.",
     );
   });
@@ -141,9 +180,44 @@ describe('DefaultWorkflowRunner', () => {
         steps: [{ id: 'test', name: 'name', action: 'jest-validated-action' }],
       });
 
-      await expect(runner.execute(task)).rejects.toThrowError(
-        /Invalid input passed to action jest-validated-action, instance requires property \"foo\"/,
+      await expect(runner.execute(task)).rejects.toThrow(
+        /Invalid input passed to action jest-validated-action, instance requires property "foo"/,
       );
+    });
+
+    it('should throw an error if the action has a zod schema and the input does not match', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        parameters: {},
+        output: {},
+        steps: [
+          { id: 'test', name: 'name', action: 'jest-zod-validated-action' },
+        ],
+      });
+
+      await expect(runner.execute(task)).rejects.toThrow(
+        /Invalid input passed to action jest-zod-validated-action, instance requires property \"foo\"/,
+      );
+    });
+
+    it('should run the action when the zod validation passes', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        parameters: {},
+        output: {},
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            action: 'jest-zod-validated-action',
+            input: { foo: 1 },
+          },
+        ],
+      });
+
+      await runner.execute(task);
+
+      expect(fakeActionHandler).toHaveBeenCalledTimes(1);
     });
 
     it('should run the action when the validation passes', async () => {
@@ -168,6 +242,21 @@ describe('DefaultWorkflowRunner', () => {
 
     it('should pass metadata through', async () => {
       const entityRef = `template:default/templateName`;
+
+      const userEntity: UserEntity = {
+        apiVersion: 'backstage.io/v1beta1',
+        kind: 'User',
+        metadata: {
+          name: 'user',
+        },
+        spec: {
+          profile: {
+            displayName: 'Bogdan Nechyporenko',
+            email: 'bnechyporenko@company.com',
+          },
+        },
+      };
+
       const task = createMockTaskWithSpec({
         apiVersion: 'scaffolder.backstage.io/v1beta3',
         parameters: {},
@@ -181,12 +270,19 @@ describe('DefaultWorkflowRunner', () => {
           },
         ],
         templateInfo: { entityRef },
+        user: {
+          entity: userEntity,
+        },
       });
 
       await runner.execute(task);
 
       expect(fakeActionHandler.mock.calls[0][0].templateInfo).toEqual({
         entityRef,
+      });
+
+      expect(fakeActionHandler.mock.calls[0][0].user).toEqual({
+        entity: userEntity,
       });
     });
 
@@ -477,6 +573,101 @@ describe('DefaultWorkflowRunner', () => {
     });
   });
 
+  describe('each', () => {
+    it('should run a step repeatedly - flat values', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            each: '${{parameters.colors}}',
+            action: 'jest-mock-action',
+            input: { color: '${{each.value}}' },
+          },
+        ],
+        output: {},
+        parameters: {
+          colors: ['blue', 'green', 'red'],
+        },
+      });
+
+      await runner.execute(task);
+
+      expect(fakeActionHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { color: 'blue' } }),
+      );
+      expect(fakeActionHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { color: 'green' } }),
+      );
+      expect(fakeActionHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { color: 'red' } }),
+      );
+    });
+
+    it('should run a step repeatedly - object list', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            each: '${{parameters.settings}}',
+            action: 'jest-mock-action',
+            input: {
+              key: '${{each.key}}',
+              value: '${{each.value}}',
+            },
+          },
+        ],
+        output: {},
+        parameters: {
+          settings: [{ color: 'blue' }],
+        },
+      });
+
+      await runner.execute(task);
+
+      expect(fakeActionHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: { key: '0', value: { color: 'blue' } },
+        }),
+      );
+    });
+
+    it('should run a step repeatedly - object', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            each: '${{parameters.settings}}',
+            action: 'jest-mock-action',
+            input: { key: '${{each.key}}', value: '${{each.value}}' },
+          },
+        ],
+        output: {},
+        parameters: {
+          settings: { color: 'blue', transparent: 'yes' },
+        },
+      });
+
+      await runner.execute(task);
+
+      expect(fakeActionHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: { key: 'color', value: 'blue' },
+        }),
+      );
+      expect(fakeActionHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: { key: 'transparent', value: 'yes' },
+        }),
+      );
+    });
+  });
+
   describe('secrets', () => {
     it('should pass through the secrets to the context', async () => {
       const task = createMockTaskWithSpec(
@@ -558,6 +749,36 @@ describe('DefaultWorkflowRunner', () => {
     });
   });
 
+  describe('user', () => {
+    it('allows access to the user entity at the templating level', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            action: 'output-action',
+            input: {},
+          },
+        ],
+        user: {
+          entity: { metadata: { name: 'bob' } } as UserEntity,
+          ref: 'user:default/guest',
+        },
+        output: {
+          foo: '${{ user.entity.metadata.name }} ${{ user.ref }}',
+        },
+        parameters: {
+          repoUrl: 'github.com?repo=repo&owner=owner',
+        },
+      });
+
+      const { output } = await runner.execute(task);
+
+      expect(output.foo).toEqual('bob user:default/guest');
+    });
+  });
+
   describe('filters', () => {
     it('provides the parseRepoUrl filter', async () => {
       const task = createMockTaskWithSpec({
@@ -585,6 +806,195 @@ describe('DefaultWorkflowRunner', () => {
         owner: 'owner',
         repo: 'repo',
       });
+    });
+
+    it('provides the parseEntityRef filter', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            action: 'output-action',
+            input: {},
+          },
+        ],
+        output: {
+          foo: '${{ parameters.entity | parseEntityRef }}',
+        },
+        parameters: {
+          entity: 'component:default/ben',
+        },
+      });
+
+      const { output } = await runner.execute(task);
+
+      expect(output.foo).toEqual({
+        kind: 'component',
+        namespace: 'default',
+        name: 'ben',
+      });
+    });
+
+    it('provides the pick filter', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            action: 'output-action',
+            input: {},
+          },
+        ],
+        output: {
+          foo: '${{ parameters.entity | parseEntityRef | pick("kind") }}',
+        },
+        parameters: {
+          entity: 'component:default/ben',
+        },
+      });
+
+      const { output } = await runner.execute(task);
+
+      expect(output.foo).toEqual('component');
+    });
+
+    it('should allow deep nesting of picked objects', async () => {
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            action: 'output-action',
+            input: {},
+          },
+        ],
+        output: {
+          foo: '${{ parameters.entity | pick("something.deeply.nested") }}',
+        },
+        parameters: {
+          entity: {
+            something: {
+              deeply: {
+                nested: 'component',
+              },
+            },
+          },
+        },
+      });
+
+      const { output } = await runner.execute(task);
+
+      expect(output.foo).toEqual('component');
+    });
+  });
+
+  describe('dry run', () => {
+    it('sets isDryRun flag correctly', async () => {
+      const task = createMockTaskWithSpec(
+        {
+          apiVersion: 'scaffolder.backstage.io/v1beta3',
+          parameters: {},
+          output: {},
+          steps: [
+            {
+              id: 'test',
+              name: 'name',
+              action: 'jest-validated-action',
+              input: { foo: 1 },
+            },
+          ],
+        },
+        {
+          backstageToken: 'secret',
+        },
+        true,
+      );
+
+      await runner.execute(task);
+
+      expect(fakeActionHandler.mock.calls[0][0].isDryRun).toEqual(true);
+    });
+  });
+
+  describe('permissions', () => {
+    it('should throw an error if an actions is not authorized', async () => {
+      mockedPermissionApi.authorizeConditional.mockResolvedValueOnce([
+        { result: AuthorizeResult.DENY },
+      ]);
+
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        parameters: {},
+        output: {},
+        steps: [
+          {
+            id: 'test',
+            name: 'name',
+            action: 'jest-validated-action',
+            input: { foo: 1 },
+          },
+        ],
+      });
+
+      await expect(runner.execute(task)).rejects.toThrow(
+        /Unauthorized action: jest-validated-action. The action is not allowed/,
+      );
+      expect(fakeActionHandler).not.toHaveBeenCalled();
+    });
+
+    it(`shouldn't execute actions who aren't authorized`, async () => {
+      mockedPermissionApi.authorizeConditional.mockResolvedValueOnce([
+        {
+          result: AuthorizeResult.CONDITIONAL,
+          pluginId: 'scaffolder',
+          resourceType: RESOURCE_TYPE_SCAFFOLDER_ACTION,
+          conditions: {
+            anyOf: [
+              {
+                resourceType: RESOURCE_TYPE_SCAFFOLDER_ACTION,
+                rule: 'HAS_NUMBER_PROPERTY',
+                params: {
+                  key: 'foo',
+                  value: 1,
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
+      const task = createMockTaskWithSpec({
+        apiVersion: 'scaffolder.backstage.io/v1beta3',
+        parameters: {},
+        output: {},
+        steps: [
+          {
+            id: 'test1',
+            name: 'valid action',
+            action: 'jest-validated-action',
+            input: { foo: 1 },
+          },
+          {
+            id: 'test2',
+            name: 'invalid action',
+            action: 'jest-validated-action',
+            input: { foo: 2 },
+          },
+        ],
+      });
+
+      await expect(runner.execute(task)).rejects.toThrow(
+        `Unauthorized action: jest-validated-action. The action is not allowed. Input: ${JSON.stringify(
+          { foo: 2 },
+          null,
+          2,
+        )}`,
+      );
+      expect(fakeActionHandler).toHaveBeenCalled();
+      expect(mockedPermissionApi.authorizeConditional).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -17,7 +17,8 @@ import { Entity } from '@backstage/catalog-model';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
 import { renderHook } from '@testing-library/react-hooks';
 import React, { PropsWithChildren } from 'react';
-import { lighthouseApiRef, WebsiteListResponse } from '../api';
+import { WebsiteListResponse } from '@backstage/plugin-lighthouse-common';
+import { lighthouseApiRef } from '../api';
 import * as data from '../__fixtures__/website-list-response.json';
 import { useWebsiteForEntity } from './useWebsiteForEntity';
 
@@ -95,6 +96,23 @@ describe('useWebsiteForEntity', () => {
       await waitForNextUpdate();
       expect(result.current?.error).toBe(error);
       expect(mockErrorApi.post).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('where there is an error regarding "no audited websites for url"', () => {
+    const error = new Error('no audited website found for url unit-test-url');
+
+    beforeEach(() => {
+      (mockLighthouseApi.getWebsiteByUrl as jest.Mock).mockRejectedValueOnce(
+        error,
+      );
+    });
+
+    it('does not post the error to the error api and returns the error to the caller', async () => {
+      const { result, waitForNextUpdate } = subject();
+      await waitForNextUpdate();
+      expect(result.current?.error).toBe(error);
+      expect(mockErrorApi.post).not.toHaveBeenCalledWith(error);
     });
   });
 });

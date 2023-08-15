@@ -47,7 +47,7 @@ const useStyles = makeStyles(
       padding: theme.spacing(2, 2, 2, 2.5),
     },
     headerTitle: {
-      fontWeight: 700,
+      fontWeight: theme.typography.fontWeightBold,
     },
     headerSubheader: {
       paddingTop: theme.spacing(1),
@@ -92,6 +92,10 @@ const VARIANT_STYLES = {
       flexDirection: 'column',
       height: 'calc(100% - 10px)', // for pages without content header
       marginBottom: '10px',
+      breakInside: 'avoid-page',
+      '@media print': {
+        height: 'auto',
+      },
     },
   },
   cardContent: {
@@ -125,7 +129,7 @@ export type InfoCardVariants = 'flex' | 'fullHeight' | 'gridItem';
  *
  * `<InfoCard variant="gridItem">...</InfoCard>`
  */
-type Props = {
+export type Props = {
   title?: ReactNode;
   subheader?: ReactNode;
   divider?: boolean;
@@ -188,20 +192,27 @@ export function InfoCard(props: Props): JSX.Element {
     variants.forEach(name => {
       calculatedStyle = {
         ...calculatedStyle,
-        ...VARIANT_STYLES.card[name as keyof typeof VARIANT_STYLES['card']],
+        ...VARIANT_STYLES.card[name as keyof (typeof VARIANT_STYLES)['card']],
       };
       calculatedCardStyle = {
         ...calculatedCardStyle,
         ...VARIANT_STYLES.cardContent[
-          name as keyof typeof VARIANT_STYLES['cardContent']
+          name as keyof (typeof VARIANT_STYLES)['cardContent']
         ],
       };
     });
   }
 
   const cardSubTitle = () => {
+    if (!subheader && !icon) {
+      return null;
+    }
+
     return (
-      <div className={classes.headerSubheader}>
+      <div
+        className={classes.headerSubheader}
+        data-testid="info-card-subheader"
+      >
         {subheader && <div className={classes.subheader}>{subheader}</div>}
         {icon}
       </div>

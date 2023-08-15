@@ -17,8 +17,10 @@
 import { DatabaseManager, getVoidLogger } from '@backstage/backend-common';
 import { TestDatabaseId, TestDatabases } from '@backstage/backend-test-utils';
 import { Duration } from 'luxon';
-import { TaskScheduler } from './TaskScheduler';
 import waitForExpect from 'wait-for-expect';
+import { TaskScheduler } from './TaskScheduler';
+
+jest.setTimeout(60_000);
 
 describe('TaskScheduler', () => {
   const logger = getVoidLogger();
@@ -53,10 +55,9 @@ describe('TaskScheduler', () => {
       });
 
       await waitForExpect(() => {
-        expect(fn).toBeCalled();
+        expect(fn).toHaveBeenCalled();
       });
     },
-    60_000,
   );
 
   it.each(databases.eachSupportedId())(
@@ -74,9 +75,8 @@ describe('TaskScheduler', () => {
       });
 
       await waitForExpect(() => {
-        expect(fn).toBeCalled();
+        expect(fn).toHaveBeenCalled();
       });
     },
-    60_000,
   );
 });

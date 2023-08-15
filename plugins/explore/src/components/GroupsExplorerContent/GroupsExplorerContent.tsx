@@ -23,29 +23,25 @@ import {
 } from '@backstage/core-components';
 import { makeStyles } from '@material-ui/core/styles';
 
-const useStyles = makeStyles({
-  root: {
-    height: '100%',
-    maxHeight: '100%',
-    minHeight: 0,
+const useStyles = makeStyles(
+  {
+    root: {
+      height: '100%',
+      maxHeight: '100%',
+      minHeight: 0,
+    },
   },
-});
+  { name: 'ExploreGroupsContent' },
+);
 
-type GroupsExplorerContentProps = {
-  title?: string;
-};
-
-export const GroupsExplorerContent = ({
-  title,
-}: GroupsExplorerContentProps) => {
+export const GroupsExplorerContent = (props: { title?: string }) => {
   const classes = useStyles();
 
   return (
     <Content noPadding stretch className={classes.root}>
-      <ContentHeader title={title ?? 'Groups'}>
+      <ContentHeader title={props.title ?? 'Groups'}>
         <SupportButton>Explore your groups.</SupportButton>
       </ContentHeader>
-
       <GroupsDiagram />
     </Content>
   );

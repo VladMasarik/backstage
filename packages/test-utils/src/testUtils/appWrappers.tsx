@@ -15,11 +15,9 @@
  */
 
 import React, { ComponentType, ReactNode, ReactElement } from 'react';
-import { MemoryRouter, Routes } from 'react-router';
+import { MemoryRouter } from 'react-router-dom';
 import { Route } from 'react-router-dom';
-import { lightTheme } from '@backstage/theme';
-import { ThemeProvider } from '@material-ui/core/styles';
-import { CssBaseline } from '@material-ui/core';
+import { UnifiedThemeProvider, themes } from '@backstage/theme';
 import MockIcon from '@material-ui/icons/AcUnit';
 import { createSpecializedApp } from '@backstage/core-app-api';
 import {
@@ -29,7 +27,7 @@ import {
   attachComponentData,
   createRouteRef,
 } from '@backstage/core-plugin-api';
-import { RenderResult } from '@testing-library/react';
+import { MatcherFunction, RenderResult } from '@testing-library/react';
 import { renderWithEffects } from './testingLibrary';
 import { defaultApis } from './defaultApis';
 import { mockApis } from './mockApis';
@@ -107,17 +105,15 @@ function isExternalRouteRef(
 }
 
 /**
- * Wraps a component inside a Backstage test app, providing a mocked theme
- * and app context, along with mocked APIs.
+ * Creates a Wrapper component that wraps a component inside a Backstage test app,
+ * providing a mocked theme and app context, along with mocked APIs.
  *
- * @param Component - A component or react node to render inside the test app.
  * @param options - Additional options for the rendering.
  * @public
  */
-export function wrapInTestApp(
-  Component: ComponentType | ReactNode,
+export function createTestAppWrapper(
   options: TestAppOptions = {},
-): ReactElement {
+): (props: { children: ReactNode }) => JSX.Element {
   const { routeEntries = ['/'] } = options;
   const boundRoutes = new Map<ExternalRouteRef, RouteRef>();
 
@@ -144,9 +140,9 @@ export function wrapInTestApp(
         title: 'Test App Theme',
         variant: 'light',
         Provider: ({ children }) => (
-          <ThemeProvider theme={lightTheme}>
-            <CssBaseline>{children}</CssBaseline>
-          </ThemeProvider>
+          <UnifiedThemeProvider theme={themes.light}>
+            {children}
+          </UnifiedThemeProvider>
         ),
       },
     ],
@@ -161,13 +157,6 @@ export function wrapInTestApp(
       }
     },
   });
-
-  let wrappedElement: React.ReactElement;
-  if (Component instanceof Function) {
-    wrappedElement = <Component />;
-  } else {
-    wrappedElement = Component as React.ReactElement;
-  }
 
   const routeElements = Object.entries(options.mountedRoutes ?? {}).map(
     ([path, routeRef]) => {
@@ -189,18 +178,40 @@ export function wrapInTestApp(
   const AppProvider = app.getProvider();
   const AppRouter = app.getRouter();
 
-  return (
+  const TestAppWrapper = ({ children }: { children: ReactNode }) => (
     <AppProvider>
       <AppRouter>
         <NoRender>{routeElements}</NoRender>
-        {/* The path of * here is needed to be set as a catch all, so it will render the wrapper element
-         *  and work with nested routes if they exist too */}
-        <Routes>
-          <Route path="/*" element={wrappedElement} />
-        </Routes>
+        {children}
       </AppRouter>
     </AppProvider>
   );
+
+  return TestAppWrapper;
+}
+
+/**
+ * Wraps a component inside a Backstage test app, providing a mocked theme
+ * and app context, along with mocked APIs.
+ *
+ * @param Component - A component or react node to render inside the test app.
+ * @param options - Additional options for the rendering.
+ * @public
+ */
+export function wrapInTestApp(
+  Component: ComponentType | ReactNode,
+  options: TestAppOptions = {},
+): ReactElement {
+  const TestAppWrapper = createTestAppWrapper(options);
+
+  let wrappedElement: React.ReactElement;
+  if (Component instanceof Function) {
+    wrappedElement = React.createElement(Component as ComponentType);
+  } else {
+    wrappedElement = Component as React.ReactElement;
+  }
+
+  return <TestAppWrapper>{wrappedElement}</TestAppWrapper>;
 }
 
 /**
@@ -218,5 +229,35 @@ export async function renderInTestApp(
   Component: ComponentType | ReactNode,
   options: TestAppOptions = {},
 ): Promise<RenderResult> {
-  return renderWithEffects(wrapInTestApp(Component, options));
+  let wrappedElement: React.ReactElement;
+  if (Component instanceof Function) {
+    wrappedElement = React.createElement(Component as ComponentType);
+  } else {
+    wrappedElement = Component as React.ReactElement;
+  }
+
+  return renderWithEffects(wrappedElement, {
+    wrapper: createTestAppWrapper(options),
+  });
 }
+
+/**
+ * Returns a `@testing-library/react` valid MatcherFunction for supplied text
+ *
+ * @param string - text Text to match by element's textContent
+ *
+ * @public
+ */
+export const textContentMatcher =
+  (text: string): MatcherFunction =>
+  (_, node) => {
+    if (!node) {
+      return false;
+    }
+
+    const hasText = (textNode: Element) => textNode?.textContent === text;
+    const childrenDontHaveText = (containerNode: Element) =>
+      Array.from(containerNode?.children).every(child => !hasText(child));
+
+    return hasText(node) && childrenDontHaveText(node);
+  };

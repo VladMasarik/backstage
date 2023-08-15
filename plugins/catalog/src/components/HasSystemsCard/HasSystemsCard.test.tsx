@@ -22,17 +22,19 @@ import {
   entityRouteRef,
 } from '@backstage/plugin-catalog-react';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
-import { waitFor } from '@testing-library/react';
+import { waitFor, screen } from '@testing-library/react';
 import React from 'react';
 import { HasSystemsCard } from './HasSystemsCard';
 
 describe('<HasSystemsCard />', () => {
-  const getEntities: jest.MockedFunction<CatalogApi['getEntities']> = jest.fn();
-  let Wrapper: React.ComponentType;
+  const getEntitiesByRefs: jest.MockedFunction<
+    CatalogApi['getEntitiesByRefs']
+  > = jest.fn();
+  let Wrapper: React.ComponentType<React.PropsWithChildren<{}>>;
 
   beforeEach(() => {
     Wrapper = ({ children }: { children?: React.ReactNode }) => (
-      <TestApiProvider apis={[[catalogApiRef, { getEntities }]]}>
+      <TestApiProvider apis={[[catalogApiRef, { getEntitiesByRefs }]]}>
         {children}
       </TestApiProvider>
     );
@@ -51,7 +53,7 @@ describe('<HasSystemsCard />', () => {
       relations: [],
     };
 
-    const { getByText } = await renderInTestApp(
+    await renderInTestApp(
       <Wrapper>
         <EntityProvider entity={entity}>
           <HasSystemsCard />
@@ -64,8 +66,10 @@ describe('<HasSystemsCard />', () => {
       },
     );
 
-    expect(getByText('Has systems')).toBeInTheDocument();
-    expect(getByText(/No system is part of this domain/i)).toBeInTheDocument();
+    expect(screen.getByText('Has systems')).toBeInTheDocument();
+    expect(
+      screen.getByText(/No system is part of this domain/i),
+    ).toBeInTheDocument();
   });
 
   it('shows related systems', async () => {
@@ -83,7 +87,7 @@ describe('<HasSystemsCard />', () => {
         },
       ],
     };
-    getEntities.mockResolvedValue({
+    getEntitiesByRefs.mockResolvedValue({
       items: [
         {
           apiVersion: 'v1',
@@ -97,7 +101,7 @@ describe('<HasSystemsCard />', () => {
       ],
     });
 
-    const { getByText } = await renderInTestApp(
+    await renderInTestApp(
       <Wrapper>
         <EntityProvider entity={entity}>
           <HasSystemsCard />
@@ -111,8 +115,8 @@ describe('<HasSystemsCard />', () => {
     );
 
     await waitFor(() => {
-      expect(getByText('Has systems')).toBeInTheDocument();
-      expect(getByText(/target-name/i)).toBeInTheDocument();
+      expect(screen.getByText('Has systems')).toBeInTheDocument();
+      expect(screen.getByText(/target-name/i)).toBeInTheDocument();
     });
   });
 });

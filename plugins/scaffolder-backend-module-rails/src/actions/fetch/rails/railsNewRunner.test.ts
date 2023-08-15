@@ -17,18 +17,21 @@
 const executeShellCommand = jest.fn();
 const commandExists = jest.fn();
 
-jest.mock('@backstage/plugin-scaffolder-backend', () => ({
-  executeShellCommand,
+jest.mock('@backstage/plugin-scaffolder-node', () => ({
+  executeShellCommand: (...args: any[]) => executeShellCommand(...args),
 }));
-jest.mock('command-exists', () => commandExists);
+jest.mock(
+  'command-exists',
+  () =>
+    (...args: any[]) =>
+      commandExists(...args),
+);
 jest.mock('fs-extra');
 
 import { ContainerRunner } from '@backstage/backend-common';
 import fs from 'fs-extra';
-
 import path from 'path';
 import { PassThrough } from 'stream';
-
 import { RailsNewRunner } from './railsNewRunner';
 
 describe('Rails Templater', () => {

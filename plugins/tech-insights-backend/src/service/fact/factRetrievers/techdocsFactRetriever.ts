@@ -34,17 +34,28 @@ const techdocsAnnotationFactName =
 export const techdocsFactRetriever: FactRetriever = {
   id: 'techdocsFactRetriever',
   version: '0.0.1',
+  title: 'Tech Docs',
+  description:
+    'Generates facts related to the completeness of techdocs configuration for entities',
   schema: {
     [techdocsAnnotationFactName]: {
       type: 'boolean',
-      description: 'The entity has a title in metadata',
+      description: 'The entity has a TechDocs reference annotation',
     },
   },
-  handler: async ({ discovery, entityFilter }: FactRetrieverContext) => {
+  handler: async ({
+    discovery,
+    entityFilter,
+    tokenManager,
+  }: FactRetrieverContext) => {
+    const { token } = await tokenManager.getToken();
     const catalogClient = new CatalogClient({
       discoveryApi: discovery,
     });
-    const entities = await catalogClient.getEntities({ filter: entityFilter });
+    const entities = await catalogClient.getEntities(
+      { filter: entityFilter },
+      { token },
+    );
 
     return entities.items.map((entity: Entity) => {
       return {

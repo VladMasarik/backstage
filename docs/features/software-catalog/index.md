@@ -14,7 +14,7 @@ websites, libraries, data pipelines, etc). The catalog is built around the
 concept of [metadata YAML files](descriptor-format.md) stored together with the
 code, which are then harvested and visualized in Backstage.
 
-![software-catalog](https://backstage.io/blog/assets/6/header.png)
+![software-catalog](../../assets/header.png)
 
 ## How it works
 
@@ -130,7 +130,7 @@ infrastructure UIs (and incurring additional cognitive overhead each time they
 make a context switch), most of these tools can be organized around the entities
 in the catalog.
 
-![tools](https://backstage.io/blog/assets/20-05-20/tabs.png)
+![tools](https://backstage.io/assets/images/tabs-abfdf72185d3ceb1d92c4237f7f78809.png)
 
 The Backstage platform can be customized by incorporating
 [existing open source plugins](https://github.com/backstage/backstage/tree/master/plugins),

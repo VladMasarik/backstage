@@ -13,16 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { createTemplateAction } from '../../createTemplateAction';
-import { readFile } from 'fs-extra';
-import { Gitlab } from '@gitbeaker/node';
-import globby from 'globby';
-import { Types } from '@gitbeaker/core';
 
+import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
+import { Gitlab } from '@gitbeaker/node';
+import { Types } from '@gitbeaker/core';
+import path from 'path';
 import { ScmIntegrationRegistry } from '@backstage/integration';
 import { InputError } from '@backstage/errors';
 import { parseRepoUrl } from './util';
 import { resolveSafeChildPath } from '@backstage/backend-common';
+import { serializeDirectoryContents } from '../../../../lib/files';
 
 /**
  * Create a new action that creates a gitlab merge request.
@@ -35,25 +35,32 @@ export const createPublishGitlabMergeRequestAction = (options: {
   const { integrations } = options;
 
   return createTemplateAction<{
-    projectid: string;
     repoUrl: string;
     title: string;
     description: string;
     branchName: string;
-    targetPath: string;
+    targetBranchName?: string;
+    sourcePath?: string;
+    targetPath?: string;
     token?: string;
+    commitAction?: 'create' | 'delete' | 'update';
+    /** @deprecated projectID passed as query parameters in the repoUrl */
+    projectid?: string;
+    removeSourceBranch?: boolean;
+    assignee?: string;
   }>({
     id: 'publish:gitlab:merge-request',
     schema: {
       input: {
-        required: ['projectid', 'repoUrl', 'targetPath', 'branchName'],
+        required: ['repoUrl', 'branchName'],
         type: 'object',
         properties: {
           repoUrl: {
             type: 'string',
             title: 'Repository Location',
-            description: `Accepts the format 'gitlab.com/group_name/project_name' where 'project_name' is the repository name and 'group_name' is a group or username`,
+            description: `Accepts the format 'gitlab.com?repo=project_name&owner=group_name' where 'project_name' is the repository name and 'group_name' is a group or username`,
           },
+          /** @deprecated projectID is passed as query parameters in the repoUrl */
           projectid: {
             type: 'string',
             title: 'projectid',
@@ -71,8 +78,19 @@ export const createPublishGitlabMergeRequestAction = (options: {
           },
           branchName: {
             type: 'string',
-            title: 'Destination Branch name',
-            description: 'The description of the merge request',
+            title: 'Source Branch Name',
+            description: 'The source branch name of the merge request',
+          },
+          targetBranchName: {
+            type: 'string',
+            title: 'Target Branch Name',
+            description: 'The target branch name of the merge request',
+          },
+          sourcePath: {
+            type: 'string',
+            title: 'Working Subdirectory',
+            description:
+              'Subdirectory of working directory to copy changes from',
           },
           targetPath: {
             type: 'string',
@@ -84,16 +102,42 @@ export const createPublishGitlabMergeRequestAction = (options: {
             type: 'string',
             description: 'The token to use for authorization to GitLab',
           },
+          commitAction: {
+            title: 'Commit action',
+            type: 'string',
+            enum: ['create', 'update', 'delete'],
+            description:
+              'The action to be used for git commit. Defaults to create.',
+          },
+          removeSourceBranch: {
+            title: 'Delete source branch',
+            type: 'boolean',
+            description:
+              'Option to delete source branch once the MR has been merged. Default: false',
+          },
+          assignee: {
+            title: 'Merge Request Assignee',
+            type: 'string',
+            description: 'User this merge request will be assigned to',
+          },
         },
       },
       output: {
         type: 'object',
         properties: {
+          targetBranchName: {
+            title: 'Target branch name of the merge request',
+            type: 'string',
+          },
           projectid: {
             title: 'Gitlab Project id/Name(slug)',
             type: 'string',
           },
-          mergeRequestURL: {
+          projectPath: {
+            title: 'Gitlab Project path',
+            type: 'string',
+          },
+          mergeRequestUrl: {
             title: 'MergeRequest(MR) URL',
             type: 'string',
             description: 'Link to the merge request in GitLab',
@@ -102,13 +146,26 @@ export const createPublishGitlabMergeRequestAction = (options: {
       },
     },
     async handler(ctx) {
-      const repoUrl = ctx.input.repoUrl;
-      const { host } = parseRepoUrl(repoUrl, integrations);
+      const {
+        assignee,
+        branchName,
+        targetBranchName,
+        description,
+        repoUrl,
+        removeSourceBranch,
+        targetPath,
+        sourcePath,
+        title,
+        token: providedToken,
+      } = ctx.input;
+
+      const { host, owner, repo, project } = parseRepoUrl(
+        repoUrl,
+        integrations,
+      );
+      const repoID = project ? project : `${owner}/${repo}`;
+
       const integrationConfig = integrations.gitlab.byHost(host);
-
-      const actions: Types.CommitAction[] = [];
-
-      const destinationBranch = ctx.input.branchName;
 
       if (!integrationConfig) {
         throw new InputError(
@@ -116,79 +173,96 @@ export const createPublishGitlabMergeRequestAction = (options: {
         );
       }
 
-      if (!integrationConfig.config.token && !ctx.input.token) {
+      if (!integrationConfig.config.token && !providedToken) {
         throw new InputError(`No token available for host ${host}`);
       }
 
-      const token = ctx.input.token ?? integrationConfig.config.token!;
-      const tokenType = ctx.input.token ? 'oauthToken' : 'token';
+      const token = providedToken ?? integrationConfig.config.token!;
+      const tokenType = providedToken ? 'oauthToken' : 'token';
 
       const api = new Gitlab({
         host: integrationConfig.config.baseUrl,
         [tokenType]: token,
       });
 
-      const fileRoot = ctx.workspacePath;
-      const localFilePaths = await globby([`${ctx.input.targetPath}/**`], {
-        cwd: fileRoot,
+      let assigneeId = undefined;
+
+      if (assignee !== undefined) {
+        try {
+          const assigneeUser = await api.Users.username(assignee);
+          assigneeId = assigneeUser[0].id;
+        } catch (e) {
+          ctx.logger.warn(
+            `Failed to find gitlab user id for ${assignee}: ${e}. Proceeding with MR creation without an assignee.`,
+          );
+        }
+      }
+
+      let fileRoot: string;
+      if (sourcePath) {
+        fileRoot = resolveSafeChildPath(ctx.workspacePath, sourcePath);
+      } else if (targetPath) {
+        // for backward compatibility
+        fileRoot = resolveSafeChildPath(ctx.workspacePath, targetPath);
+      } else {
+        fileRoot = ctx.workspacePath;
+      }
+
+      const fileContents = await serializeDirectoryContents(fileRoot, {
         gitignore: true,
-        dot: true,
       });
 
-      const fileContents = await Promise.all(
-        localFilePaths.map(p => readFile(resolveSafeChildPath(fileRoot, p))),
-      );
+      const actions: Types.CommitAction[] = fileContents.map(file => ({
+        action: ctx.input.commitAction ?? 'create',
+        filePath: targetPath
+          ? path.posix.join(targetPath, file.path)
+          : file.path,
+        encoding: 'base64',
+        content: file.content.toString('base64'),
+        execute_filemode: file.executable,
+      }));
 
-      const repoFilePaths = localFilePaths.map(repoFilePath => {
-        return repoFilePath;
-      });
+      let targetBranch = targetBranchName;
+      if (!targetBranch) {
+        const projects = await api.Projects.show(repoID);
 
-      for (let i = 0; i < repoFilePaths.length; i++) {
-        actions.push({
-          action: 'create',
-          filePath: repoFilePaths[i],
-          content: fileContents[i].toString(),
-        });
-      }
-
-      const projects = await api.Projects.show(ctx.input.projectid);
-
-      const { default_branch: defaultBranch } = projects;
-
-      try {
-        await api.Branches.create(
-          ctx.input.projectid,
-          destinationBranch,
-          String(defaultBranch),
-        );
-      } catch (e) {
-        throw new InputError(`The branch creation failed ${e}`);
+        const { default_branch: defaultBranch } = projects;
+        targetBranch = defaultBranch!;
       }
 
       try {
-        await api.Commits.create(
-          ctx.input.projectid,
-          destinationBranch,
-          ctx.input.title,
-          actions,
-        );
+        await api.Branches.create(repoID, branchName, String(targetBranch));
       } catch (e) {
         throw new InputError(
-          `Committing the changes to ${destinationBranch} failed ${e}`,
+          `The branch creation failed. Please check that your repo does not already contain a branch named '${branchName}'. ${e}`,
+        );
+      }
+
+      try {
+        await api.Commits.create(repoID, branchName, ctx.input.title, actions);
+      } catch (e) {
+        throw new InputError(
+          `Committing the changes to ${branchName} failed. Please check that none of the files created by the template already exists. ${e}`,
         );
       }
 
       try {
         const mergeRequestUrl = await api.MergeRequests.create(
-          ctx.input.projectid,
-          destinationBranch,
-          String(defaultBranch),
-          ctx.input.title,
-          { description: ctx.input.description },
+          repoID,
+          branchName,
+          String(targetBranch),
+          title,
+          {
+            description,
+            removeSourceBranch: removeSourceBranch ? removeSourceBranch : false,
+            assigneeId,
+          },
         ).then((mergeRequest: { web_url: string }) => {
           return mergeRequest.web_url;
         });
-        ctx.output('projectid', ctx.input.projectid);
+        ctx.output('projectid', repoID);
+        ctx.output('targetBranchName', targetBranch);
+        ctx.output('projectPath', repoID);
         ctx.output('mergeRequestUrl', mergeRequestUrl);
       } catch (e) {
         throw new InputError(`Merge request creation failed${e}`);

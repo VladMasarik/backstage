@@ -14,25 +14,23 @@
  * limitations under the License.
  */
 
-import React, { useState, useCallback } from 'react';
-import { create } from 'jss';
+import React, { useCallback } from 'react';
 
-import { makeStyles, Grid, Portal } from '@material-ui/core';
-import { StylesProvider, jssPreset } from '@material-ui/styles';
+import { makeStyles, Grid } from '@material-ui/core';
 
 import {
-  useTechDocsAddons,
-  TechDocsAddonLocations as locations,
+  TechDocsShadowDom,
   useTechDocsReaderPage,
 } from '@backstage/plugin-techdocs-react';
 import { CompoundEntityRef } from '@backstage/catalog-model';
-import { Content, Progress } from '@backstage/core-components';
+import { Content, ErrorPage } from '@backstage/core-components';
 
 import { TechDocsSearch } from '../../../search';
 import { TechDocsStateIndicator } from '../TechDocsStateIndicator';
 
 import { useTechDocsReaderDom } from './dom';
-import { withTechDocsReaderProvider } from './context';
+import { withTechDocsReaderProvider } from '../TechDocsReaderProvider';
+import { TechDocsReaderPageContentAddons } from './TechDocsReaderPageContentAddons';
 
 const useStyles = makeStyles({
   search: {
@@ -40,6 +38,9 @@ const useStyles = makeStyles({
     '@media (min-width: 76.1875em)': {
       width: 'calc(100% - 34.4rem)',
       margin: '0 auto',
+    },
+    '@media print': {
+      display: 'none',
     },
   },
 });
@@ -71,61 +72,39 @@ export const TechDocsReaderPageContent = withTechDocsReaderProvider(
   (props: TechDocsReaderPageContentProps) => {
     const { withSearch = true, onReady } = props;
     const classes = useStyles();
-    const addons = useTechDocsAddons();
-    const { entityRef, shadowRoot, setShadowRoot } = useTechDocsReaderPage();
+
+    const {
+      entityMetadata: { value: entityMetadata, loading: entityMetadataLoading },
+      entityRef,
+      setShadowRoot,
+    } = useTechDocsReaderPage();
+
     const dom = useTechDocsReaderDom(entityRef);
 
-    const [jss, setJss] = useState(
-      create({
-        ...jssPreset(),
-        insertionPoint: undefined,
-      }),
-    );
-
-    const ref = useCallback(
-      (shadowHost: HTMLDivElement) => {
-        if (!dom || !shadowHost) return;
-
-        setJss(
-          create({
-            ...jssPreset(),
-            insertionPoint: dom.querySelector('head') || undefined,
-          }),
-        );
-
-        const newShadowRoot =
-          shadowHost.shadowRoot ?? shadowHost.attachShadow({ mode: 'open' });
-        newShadowRoot.innerHTML = '';
-        newShadowRoot.appendChild(dom);
+    const handleAppend = useCallback(
+      (newShadowRoot: ShadowRoot) => {
         setShadowRoot(newShadowRoot);
         if (onReady instanceof Function) {
           onReady();
         }
       },
-      [dom, setShadowRoot, onReady],
+      [setShadowRoot, onReady],
     );
 
-    const contentElement = shadowRoot?.querySelector(
-      '[data-md-component="content"]',
-    );
-    const primarySidebarElement = shadowRoot?.querySelector(
-      'div[data-md-component="sidebar"][data-md-type="navigation"], div[data-md-component="navigation"]',
-    );
-    const secondarySidebarElement = shadowRoot?.querySelector(
-      'div[data-md-component="sidebar"][data-md-type="toc"], div[data-md-component="toc"]',
-    );
+    // No entity metadata = 404. Don't render content at all.
+    if (entityMetadataLoading === false && !entityMetadata)
+      return <ErrorPage status="404" statusMessage="PAGE NOT FOUND" />;
 
-    const primarySidebarAddonLocation = document.createElement('div');
-    primarySidebarElement?.prepend(primarySidebarAddonLocation);
-
-    const secondarySidebarAddonLocation = document.createElement('div');
-    secondarySidebarElement?.prepend(secondarySidebarAddonLocation);
-
-    // do not return content until dom is ready
+    // Do not return content until dom is ready; instead, render a state
+    // indicator, which handles progress and content errors on our behalf.
     if (!dom) {
       return (
         <Content>
-          <Progress />
+          <Grid container>
+            <Grid xs={12} item>
+              <TechDocsStateIndicator />
+            </Grid>
+          </Grid>
         </Content>
       );
     }
@@ -138,23 +117,17 @@ export const TechDocsReaderPageContent = withTechDocsReaderProvider(
           </Grid>
           {withSearch && (
             <Grid className={classes.search} xs="auto" item>
-              <TechDocsSearch entityId={entityRef} />
+              <TechDocsSearch
+                entityId={entityRef}
+                entityTitle={entityMetadata?.metadata?.title}
+              />
             </Grid>
           )}
           <Grid xs={12} item>
-            {/* sheetsManager={new Map()} is needed in order to deduplicate the injection of CSS in the page. */}
-            <StylesProvider jss={jss} sheetsManager={new Map()}>
-              <div ref={ref} data-testid="techdocs-native-shadowroot" />
-              <Portal container={primarySidebarAddonLocation}>
-                {addons.renderComponentsByLocation(locations.PrimarySidebar)}
-              </Portal>
-              <Portal container={contentElement}>
-                {addons.renderComponentsByLocation(locations.Content)}
-              </Portal>
-              <Portal container={secondarySidebarAddonLocation}>
-                {addons.renderComponentsByLocation(locations.SecondarySidebar)}
-              </Portal>
-            </StylesProvider>
+            {/* Centers the styles loaded event to avoid having multiple locations setting the opacity style in Shadow Dom causing the screen to flash multiple times */}
+            <TechDocsShadowDom element={dom} onAppend={handleAppend}>
+              <TechDocsReaderPageContentAddons />
+            </TechDocsShadowDom>
           </Grid>
         </Grid>
       </Content>

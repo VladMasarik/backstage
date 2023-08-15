@@ -21,9 +21,19 @@ import userEvent from '@testing-library/user-event';
 import { configApiRef } from '@backstage/core-plugin-api';
 import { ApiProvider, ConfigReader } from '@backstage/core-app-api';
 import { rootRouteRef } from '../../plugin';
-import { searchApiRef } from '@backstage/plugin-search-react';
+import {
+  searchApiRef,
+  SearchContextProvider,
+} from '@backstage/plugin-search-react';
 
 import { SearchModal } from './SearchModal';
+
+const navigate = jest.fn();
+
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: () => navigate,
+}));
 
 describe('SearchModal', () => {
   const query = jest.fn().mockResolvedValue({ results: [] });
@@ -35,6 +45,7 @@ describe('SearchModal', () => {
 
   beforeEach(() => {
     query.mockClear();
+    navigate.mockClear();
   });
 
   const toggleModal = jest.fn();
@@ -53,6 +64,52 @@ describe('SearchModal', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('Should use parent search context if defined', async () => {
+    const initialState = {
+      term: 'term',
+      filters: { filter: '' },
+      types: ['type'],
+      pageCursor: 'page cursor',
+    };
+
+    await renderInTestApp(
+      <ApiProvider apis={apiRegistry}>
+        <SearchContextProvider initialState={initialState}>
+          <SearchModal open hidden={false} toggleModal={toggleModal} />
+        </SearchContextProvider>
+      </ApiProvider>,
+      {
+        mountedRoutes: {
+          '/search': rootRouteRef,
+        },
+      },
+    );
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(query).toHaveBeenCalledWith(initialState);
+  });
+
+  it('Should create a local search context if a parent is not defined', async () => {
+    await renderInTestApp(
+      <ApiProvider apis={apiRegistry}>
+        <SearchModal open hidden={false} toggleModal={toggleModal} />
+      </ApiProvider>,
+      {
+        mountedRoutes: {
+          '/search': rootRouteRef,
+        },
+      },
+    );
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(query).toHaveBeenCalledWith({
+      term: '',
+      filters: {},
+      types: [],
+      pageCursor: undefined,
+    });
   });
 
   it('Should render a custom Modal correctly', async () => {
@@ -103,5 +160,85 @@ describe('SearchModal', () => {
 
     expect(getByTestId('search-bar-next')).toBeInTheDocument();
     expect(getByTestId('search-bar-next')).not.toBeVisible();
+  });
+
+  it('should focus on its search bar when opened', async () => {
+    await renderInTestApp(
+      <ApiProvider apis={apiRegistry}>
+        <SearchModal open hidden={false} toggleModal={toggleModal} />
+      </ApiProvider>,
+      {
+        mountedRoutes: {
+          '/search': rootRouteRef,
+        },
+      },
+    );
+
+    expect(screen.getByLabelText('Search')).toHaveFocus();
+  });
+
+  it("Don't wait query debounce time when enter is pressed", async () => {
+    const initialState = {
+      term: 'term',
+      filters: {},
+      types: [],
+      pageCursor: '',
+    };
+
+    await renderInTestApp(
+      <ApiProvider apis={apiRegistry}>
+        <SearchContextProvider initialState={initialState}>
+          <SearchModal open hidden={false} toggleModal={toggleModal} />
+        </SearchContextProvider>
+      </ApiProvider>,
+      {
+        mountedRoutes: {
+          '/search': rootRouteRef,
+        },
+      },
+    );
+
+    expect(query).toHaveBeenCalledWith(
+      expect.objectContaining({ term: 'term' }),
+    );
+
+    const input = screen.getByLabelText('Search');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'new term{enter}');
+
+    expect(navigate).toHaveBeenCalledWith('/search?query=new term');
+  });
+
+  it('should navigate with correct search terms to full results', async () => {
+    const initialState = {
+      term: 'term',
+      filters: {},
+      types: [],
+      pageCursor: '',
+    };
+
+    await renderInTestApp(
+      <ApiProvider apis={apiRegistry}>
+        <SearchContextProvider initialState={initialState}>
+          <SearchModal open hidden={false} toggleModal={toggleModal} />
+        </SearchContextProvider>
+      </ApiProvider>,
+      {
+        mountedRoutes: {
+          '/search': rootRouteRef,
+        },
+      },
+    );
+
+    expect(query).toHaveBeenCalledWith(
+      expect.objectContaining({ term: 'term' }),
+    );
+
+    const fullResultsBtn = screen.getByRole('button', {
+      name: /view full results/i,
+    });
+    await userEvent.click(fullResultsBtn);
+
+    expect(navigate).toHaveBeenCalledWith('/search?query=term');
   });
 });

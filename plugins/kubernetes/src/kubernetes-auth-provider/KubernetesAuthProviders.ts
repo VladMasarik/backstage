@@ -17,10 +17,10 @@
 import { KubernetesRequestBody } from '@backstage/plugin-kubernetes-common';
 import { KubernetesAuthProvider, KubernetesAuthProvidersApi } from './types';
 import { GoogleKubernetesAuthProvider } from './GoogleKubernetesAuthProvider';
-import { ServiceAccountKubernetesAuthProvider } from './ServiceAccountKubernetesAuthProvider';
-import { AwsKubernetesAuthProvider } from './AwsKubernetesAuthProvider';
-import { OAuthApi } from '@backstage/core-plugin-api';
-import { GoogleServiceAccountAuthProvider } from './GoogleServiceAccountAuthProvider';
+import { ServerSideKubernetesAuthProvider } from './ServerSideAuthProvider';
+import { OAuthApi, OpenIdConnectApi } from '@backstage/core-plugin-api';
+import { OidcKubernetesAuthProvider } from './OidcKubernetesAuthProvider';
+import { AksKubernetesAuthProvider } from './AksKubernetesAuthProvider';
 
 export class KubernetesAuthProviders implements KubernetesAuthProvidersApi {
   private readonly kubernetesAuthProviderMap: Map<
@@ -28,7 +28,11 @@ export class KubernetesAuthProviders implements KubernetesAuthProvidersApi {
     KubernetesAuthProvider
   >;
 
-  constructor(options: { googleAuthApi: OAuthApi }) {
+  constructor(options: {
+    microsoftAuthApi: OAuthApi;
+    googleAuthApi: OAuthApi;
+    oidcProviders?: { [key: string]: OpenIdConnectApi };
+  }) {
     this.kubernetesAuthProviderMap = new Map<string, KubernetesAuthProvider>();
     this.kubernetesAuthProviderMap.set(
       'google',
@@ -36,13 +40,40 @@ export class KubernetesAuthProviders implements KubernetesAuthProvidersApi {
     );
     this.kubernetesAuthProviderMap.set(
       'serviceAccount',
-      new ServiceAccountKubernetesAuthProvider(),
+      new ServerSideKubernetesAuthProvider(),
     );
     this.kubernetesAuthProviderMap.set(
       'googleServiceAccount',
-      new GoogleServiceAccountAuthProvider(),
+      new ServerSideKubernetesAuthProvider(),
     );
-    this.kubernetesAuthProviderMap.set('aws', new AwsKubernetesAuthProvider());
+    this.kubernetesAuthProviderMap.set(
+      'aws',
+      new ServerSideKubernetesAuthProvider(),
+    );
+    this.kubernetesAuthProviderMap.set(
+      'azure',
+      new ServerSideKubernetesAuthProvider(),
+    );
+    this.kubernetesAuthProviderMap.set(
+      'localKubectlProxy',
+      new ServerSideKubernetesAuthProvider(),
+    );
+    this.kubernetesAuthProviderMap.set(
+      'aks',
+      new AksKubernetesAuthProvider(options.microsoftAuthApi),
+    );
+
+    if (options.oidcProviders) {
+      Object.keys(options.oidcProviders).forEach(provider => {
+        this.kubernetesAuthProviderMap.set(
+          `oidc.${provider}`,
+          new OidcKubernetesAuthProvider(
+            provider,
+            options.oidcProviders![provider],
+          ),
+        );
+      });
+    }
   }
 
   async decorateRequestBodyForAuth(
@@ -54,6 +85,30 @@ export class KubernetesAuthProviders implements KubernetesAuthProvidersApi {
     if (kubernetesAuthProvider) {
       return await kubernetesAuthProvider.decorateRequestBodyForAuth(
         requestBody,
+      );
+    }
+
+    if (authProvider.startsWith('oidc.')) {
+      throw new Error(
+        `KubernetesAuthProviders has no oidcProvider configured for ${authProvider}`,
+      );
+    }
+    throw new Error(
+      `authProvider "${authProvider}" has no KubernetesAuthProvider defined for it`,
+    );
+  }
+
+  async getCredentials(authProvider: string): Promise<{ token?: string }> {
+    const kubernetesAuthProvider: KubernetesAuthProvider | undefined =
+      this.kubernetesAuthProviderMap.get(authProvider);
+
+    if (kubernetesAuthProvider) {
+      return await kubernetesAuthProvider.getCredentials();
+    }
+
+    if (authProvider.startsWith('oidc.')) {
+      throw new Error(
+        `KubernetesAuthProviders has no oidcProvider configured for ${authProvider}`,
       );
     }
     throw new Error(

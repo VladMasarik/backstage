@@ -14,21 +14,25 @@
  * limitations under the License.
  */
 
-/// <reference types="gapi.auth2" />
-/// <reference types="gapi.client.calendar" />
+/// <reference types="@maxim_mazurok/gapi.client.calendar" />
 
+/** @public */
 export type GCalendarList = gapi.client.calendar.CalendarList;
 
+/** @public */
 export type GCalendar = gapi.client.calendar.CalendarListEntry;
 
+/** @public */
 export type EventAttendee = gapi.client.calendar.EventAttendee;
 
+/** @public */
 export type GCalendarEvent = gapi.client.calendar.Event &
   Pick<GCalendar, 'backgroundColor' | 'primary'> &
   Pick<EventAttendee, 'responseStatus'> & {
     calendarId?: string;
   };
 
+/** @public */
 export enum ResponseStatus {
   needsAction = 'needsAction',
   accepted = 'accepted',

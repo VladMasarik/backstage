@@ -15,42 +15,53 @@
  */
 
 import { UrlReader } from '@backstage/backend-common';
-import { JsonObject } from '@backstage/types';
 import { CatalogApi } from '@backstage/catalog-client';
-import {
-  GithubCredentialsProvider,
-  ScmIntegrations,
-  DefaultGithubCredentialsProvider,
-} from '@backstage/integration';
 import { Config } from '@backstage/config';
 import {
-  createCatalogWriteAction,
+  DefaultGithubCredentialsProvider,
+  GithubCredentialsProvider,
+  ScmIntegrations,
+} from '@backstage/integration';
+import { TemplateAction } from '@backstage/plugin-scaffolder-node';
+import {
   createCatalogRegisterAction,
+  createCatalogWriteAction,
+  createFetchCatalogEntityAction,
 } from './catalog';
 
-import { createDebugLogAction } from './debug';
-import { createFetchPlainAction, createFetchTemplateAction } from './fetch';
+import { TemplateFilter, TemplateGlobal } from '../../../lib';
+import { createDebugLogAction, createWaitAction } from './debug';
+import {
+  createFetchPlainAction,
+  createFetchPlainFileAction,
+  createFetchTemplateAction,
+} from './fetch';
 import {
   createFilesystemDeleteAction,
   createFilesystemRenameAction,
 } from './filesystem';
 import {
+  createGithubActionsDispatchAction,
+  createGithubDeployKeyAction,
+  createGithubEnvironmentAction,
+  createGithubIssuesLabelAction,
+  createGithubRepoCreateAction,
+  createGithubRepoPushAction,
+  createGithubWebhookAction,
+} from './github';
+import {
   createPublishAzureAction,
   createPublishBitbucketAction,
   createPublishBitbucketCloudAction,
   createPublishBitbucketServerAction,
+  createPublishBitbucketServerPullRequestAction,
+  createPublishGerritAction,
+  createPublishGerritReviewAction,
   createPublishGithubAction,
   createPublishGithubPullRequestAction,
   createPublishGitlabAction,
   createPublishGitlabMergeRequestAction,
 } from './publish';
-import {
-  createGithubActionsDispatchAction,
-  createGithubWebhookAction,
-  createGithubIssuesLabelAction,
-} from './github';
-import { TemplateFilter } from '../../../lib';
-import { TemplateAction } from '../types';
 
 /**
  * The options passed to {@link createBuiltinActions}
@@ -78,6 +89,7 @@ export interface CreateBuiltInActionsOptions {
    * Template Manifests and also template skeleton files when using `fetch:template`.
    */
   additionalTemplateFilters?: Record<string, TemplateFilter>;
+  additionalTemplateGlobals?: Record<string, TemplateGlobal>;
 }
 
 /**
@@ -89,13 +101,14 @@ export interface CreateBuiltInActionsOptions {
  */
 export const createBuiltinActions = (
   options: CreateBuiltInActionsOptions,
-): TemplateAction<JsonObject>[] => {
+): TemplateAction[] => {
   const {
     reader,
     integrations,
     catalogClient,
     config,
     additionalTemplateFilters,
+    additionalTemplateGlobals,
   } = options;
 
   const githubCredentialsProvider: GithubCredentialsProvider =
@@ -106,10 +119,23 @@ export const createBuiltinActions = (
       reader,
       integrations,
     }),
+    createFetchPlainFileAction({
+      reader,
+      integrations,
+    }),
     createFetchTemplateAction({
       integrations,
       reader,
       additionalTemplateFilters,
+      additionalTemplateGlobals,
+    }),
+    createPublishGerritAction({
+      integrations,
+      config,
+    }),
+    createPublishGerritReviewAction({
+      integrations,
+      config,
     }),
     createPublishGithubAction({
       integrations,
@@ -139,12 +165,18 @@ export const createBuiltinActions = (
       integrations,
       config,
     }),
+    createPublishBitbucketServerPullRequestAction({
+      integrations,
+      config,
+    }),
     createPublishAzureAction({
       integrations,
       config,
     }),
     createDebugLogAction(),
+    createWaitAction(),
     createCatalogRegisterAction({ catalogClient, integrations }),
+    createFetchCatalogEntityAction({ catalogClient }),
     createCatalogWriteAction(),
     createFilesystemDeleteAction(),
     createFilesystemRenameAction(),
@@ -160,7 +192,22 @@ export const createBuiltinActions = (
       integrations,
       githubCredentialsProvider,
     }),
+    createGithubRepoCreateAction({
+      integrations,
+      githubCredentialsProvider,
+    }),
+    createGithubRepoPushAction({
+      integrations,
+      config,
+      githubCredentialsProvider,
+    }),
+    createGithubEnvironmentAction({
+      integrations,
+    }),
+    createGithubDeployKeyAction({
+      integrations,
+    }),
   ];
 
-  return actions as TemplateAction<JsonObject>[];
+  return actions as TemplateAction[];
 };

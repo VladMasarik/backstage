@@ -18,7 +18,7 @@ import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import userEvent from '@testing-library/user-event';
 import { BuildListFilter } from './BuildListFilter';
 import { BuildFilters, xcmetricsApiRef } from '../../api';
-import { RenderResult } from '@testing-library/react';
+import { RenderResult, within } from '@testing-library/react';
 
 jest.mock('../../api/XcmetricsClient');
 const client = require('../../api/XcmetricsClient');
@@ -50,13 +50,13 @@ const renderWithFiltersVisible = async (
 
 const setStatusFilter = async (rendered: RenderResult, option: string) => {
   const statusSelect = rendered.getAllByTestId('select')[0];
-  await userEvent.click(statusSelect);
+  await userEvent.click(within(statusSelect).getByRole('button'));
   await userEvent.click((await rendered.findAllByText(option))[0]);
 };
 
 const setProjectFilter = async (rendered: RenderResult, option: string) => {
   const statusSelect = rendered.getAllByTestId('select')[1];
-  await userEvent.click(statusSelect);
+  await userEvent.click(within(statusSelect).getByRole('button'));
   const options = await rendered.findAllByText(option);
   await userEvent.click(options[options.length - 1]);
 };
@@ -103,13 +103,13 @@ describe('BuildListFilter', () => {
     const rendered = await renderWithFiltersVisible(callback);
 
     await setStatusFilter(rendered, 'Succeeded');
-    expect(callback).toBeCalledWith({
+    expect(callback).toHaveBeenCalledWith({
       ...initialValues,
       buildStatus: 'succeeded',
     });
 
     await setStatusFilter(rendered, 'All');
-    expect(callback).toBeCalledWith(initialValues);
+    expect(callback).toHaveBeenCalledWith(initialValues);
   });
 
   it('should call back with a project when project is selected', async () => {
@@ -117,13 +117,13 @@ describe('BuildListFilter', () => {
     const rendered = await renderWithFiltersVisible(callback);
 
     await setProjectFilter(rendered, client.mockBuild.projectName);
-    expect(callback).toBeCalledWith({
+    expect(callback).toHaveBeenCalledWith({
       ...initialValues,
       project: client.mockBuild.projectName,
     });
 
     await setProjectFilter(rendered, 'All');
-    expect(callback).toBeCalledWith(initialValues);
+    expect(callback).toHaveBeenCalledWith(initialValues);
   });
 
   it('should display a count of active (changed) filters', async () => {

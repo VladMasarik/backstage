@@ -23,20 +23,20 @@ import MenuBookIcon from '@material-ui/icons/MenuBook';
 import CloudQueueIcon from '@material-ui/icons/CloudQueue';
 import AcUnitIcon from '@material-ui/icons/AcUnit';
 import AppsIcon from '@material-ui/icons/Apps';
-import React, { ComponentType } from 'react';
+import React, { ComponentType, PropsWithChildren } from 'react';
+import { SidebarPage } from './Page';
+import { Sidebar } from './Bar';
+import { SidebarGroup } from './SidebarGroup';
 import {
-  Sidebar,
   SidebarDivider,
-  SidebarGroup,
   SidebarExpandButton,
-  SidebarIntro,
   SidebarItem,
-  SidebarPage,
   SidebarSearchField,
   SidebarSpace,
-  SidebarSubmenu,
-  SidebarSubmenuItem,
-} from '.';
+} from './Items';
+import { SidebarIntro } from './Intro';
+import { SidebarSubmenu } from './SidebarSubmenu';
+import { SidebarSubmenuItem } from './SidebarSubmenuItem';
 
 const routeRef = createRouteRef({
   id: 'storybook.test-route',
@@ -46,7 +46,7 @@ export default {
   title: 'Layout/Sidebar',
   component: Sidebar,
   decorators: [
-    (Story: ComponentType<{}>) =>
+    (Story: ComponentType<PropsWithChildren<{}>>) =>
       wrapInTestApp(<Story />, { mountedRoutes: { '/': routeRef } }),
   ],
 };

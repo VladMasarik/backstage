@@ -17,16 +17,55 @@
 import {
   KubernetesRequestBody,
   ObjectsByEntityResponse,
+  WorkloadsByEntityRequest,
+  CustomObjectsByEntityRequest,
 } from '@backstage/plugin-kubernetes-common';
 import { createApiRef } from '@backstage/core-plugin-api';
+import { Event } from 'kubernetes-models/v1';
 
 export const kubernetesApiRef = createApiRef<KubernetesApi>({
   id: 'plugin.kubernetes.service',
+});
+
+export const kubernetesProxyApiRef = createApiRef<KubernetesProxyApi>({
+  id: 'plugin.kubernetes.proxy-service',
 });
 
 export interface KubernetesApi {
   getObjectsByEntity(
     requestBody: KubernetesRequestBody,
   ): Promise<ObjectsByEntityResponse>;
-  getClusters(): Promise<{ name: string; authProvider: string }[]>;
+  getClusters(): Promise<
+    {
+      name: string;
+      authProvider: string;
+      oidcTokenProvider?: string | undefined;
+    }[]
+  >;
+  getWorkloadsByEntity(
+    request: WorkloadsByEntityRequest,
+  ): Promise<ObjectsByEntityResponse>;
+  getCustomObjectsByEntity(
+    request: CustomObjectsByEntityRequest,
+  ): Promise<ObjectsByEntityResponse>;
+  proxy(options: {
+    clusterName: string;
+    path: string;
+    init?: RequestInit;
+  }): Promise<Response>;
+}
+
+export interface KubernetesProxyApi {
+  getPodLogs(request: {
+    podName: string;
+    namespace: string;
+    clusterName: string;
+    containerName: string;
+    previous?: boolean;
+  }): Promise<{ text: string }>;
+  getEventsByInvolvedObjectName(request: {
+    clusterName: string;
+    involvedObjectName: string;
+    namespace: string;
+  }): Promise<Event[]>;
 }

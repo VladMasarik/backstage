@@ -21,15 +21,15 @@ import { EntityLinksEmptyState } from './EntityLinksEmptyState';
 import { LinksGridList } from './LinksGridList';
 import { ColumnBreakpoints } from './types';
 import { IconComponent, useApp } from '@backstage/core-plugin-api';
-import { InfoCard } from '@backstage/core-components';
+import { InfoCard, InfoCardVariants } from '@backstage/core-components';
 
 /** @public */
 export interface EntityLinksCardProps {
   cols?: ColumnBreakpoints | number;
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
 }
 
-export function EntityLinksCard(props: EntityLinksCardProps) {
+export const EntityLinksCard = (props: EntityLinksCardProps) => {
   const { cols = undefined, variant } = props;
   const { entity } = useEntity();
   const app = useApp();
@@ -55,4 +55,4 @@ export function EntityLinksCard(props: EntityLinksCardProps) {
       )}
     </InfoCard>
   );
-}
+};

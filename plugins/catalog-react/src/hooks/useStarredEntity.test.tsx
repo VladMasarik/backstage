@@ -27,7 +27,7 @@ describe('useStarredEntity', () => {
     toggleStarred: jest.fn(),
     starredEntitie$: jest.fn(),
   };
-  let wrapper: React.ComponentType;
+  let wrapper: React.ComponentType<React.PropsWithChildren<{}>>;
 
   beforeEach(() => {
     wrapper = (props: PropsWithChildren<{}>) => (
@@ -58,8 +58,8 @@ describe('useStarredEntity', () => {
 
         result.current.toggleStarredEntity();
 
-        expect(mockStarredEntitiesApi.toggleStarred).toBeCalledTimes(1);
-        expect(mockStarredEntitiesApi.toggleStarred).toBeCalledWith(
+        expect(mockStarredEntitiesApi.toggleStarred).toHaveBeenCalledTimes(1);
+        expect(mockStarredEntitiesApi.toggleStarred).toHaveBeenCalledWith(
           'component:default/mock',
         );
       });

@@ -16,9 +16,10 @@
 
 import { DatabaseHandler } from './DatabaseHandler';
 import { TestDatabaseId, TestDatabases } from '@backstage/backend-test-utils';
+import { Knex as KnexType } from 'knex';
 
 const bazaarProject: any = {
-  name: 'n1',
+  title: 'n1',
   entityRef: 'ref1',
   community: '',
   status: 'proposed',
@@ -28,18 +29,34 @@ const bazaarProject: any = {
   endDate: null,
   size: 'small',
   responsible: 'r',
+  docs: '',
 };
+
+jest.setTimeout(60_000);
 
 describe('DatabaseHandler', () => {
   const databases = TestDatabases.create({
     ids: ['POSTGRES_13', 'POSTGRES_9', 'SQLITE_3'],
   });
 
+  function createDatabaseManager(
+    client: KnexType,
+    skipMigrations: boolean = false,
+  ) {
+    return {
+      getClient: async () => client,
+      migrations: {
+        skip: skipMigrations,
+      },
+    };
+  }
+
   async function createDatabaseHandler(databaseId: TestDatabaseId) {
     const knex = await databases.init(databaseId);
+    const databaseManager = createDatabaseManager(knex);
     return {
       knex,
-      dbHandler: await DatabaseHandler.create({ database: knex }),
+      dbHandler: await DatabaseHandler.create({ database: databaseManager }),
     };
   }
 
@@ -50,7 +67,7 @@ describe('DatabaseHandler', () => {
 
       await knex('metadata').insert({
         entity_ref: bazaarProject.entityRef,
-        name: bazaarProject.name,
+        title: bazaarProject.title,
         description: bazaarProject.description,
         community: bazaarProject.community,
         status: bazaarProject.status,
@@ -59,6 +76,14 @@ describe('DatabaseHandler', () => {
         end_date: bazaarProject.endDate,
         size: bazaarProject.size,
         responsible: bazaarProject.responsible,
+        docs: bazaarProject.docs,
+      });
+
+      // Add a member to the project
+      await knex('members').insert({
+        item_id: 1,
+        user_ref: 'user:default/thehulk',
+        user_id: 'Bruce Banner',
       });
 
       const res = await dbHandler.getMetadataByRef('ref1');
@@ -71,7 +96,10 @@ describe('DatabaseHandler', () => {
       expect(res[0].end_date).toEqual(null);
       expect(res[0].size).toEqual('small');
       expect(res[0].responsible).toEqual('r');
+      expect(res[0].docs).toEqual('');
+      expect(
+        res[0].members_count === '1' || res[0].members_count === 1,
+      ).toBeTruthy();
     },
-    60_000,
   );
 });

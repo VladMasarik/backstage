@@ -40,7 +40,7 @@ export async function buildTypeDefinitionsWorker(
   const { Extractor, ExtractorConfig, CompilerState } = apiExtractor;
 
   /**
-   * All of this monkey patching below is because MUI has these bare package.json file as a method
+   * All of this monkey patching below is because Material UI has these bare package.json file as a method
    * for making TypeScript accept imports like `@material-ui/core/Button`, and improve tree-shaking
    * by declaring them side effect free.
    *
@@ -50,7 +50,7 @@ export async function buildTypeDefinitionsWorker(
    */
   const {
     PackageJsonLookup,
-    // eslint-disable-next-line import/no-extraneous-dependencies
+    // eslint-disable-next-line @backstage/no-undeclared-imports
   } = require('@rushstack/node-core-library/lib/PackageJsonLookup');
 
   const old = PackageJsonLookup.prototype.tryGetPackageJsonFilePathFor;

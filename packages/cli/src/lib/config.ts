@@ -19,11 +19,11 @@ import {
   loadConfig,
   loadConfigSchema,
 } from '@backstage/config-loader';
-import { ConfigReader } from '@backstage/config';
+import { AppConfig, ConfigReader } from '@backstage/config';
 import { paths } from './paths';
 import { isValidUrl } from './urls';
 import { getPackages } from '@manypkg/get-packages';
-import { PackageGraph } from './monorepo';
+import { PackageGraph } from '@backstage/cli-node';
 
 type Options = {
   args: string[];
@@ -32,6 +32,8 @@ type Options = {
   withFilteredKeys?: boolean;
   withDeprecatedKeys?: boolean;
   fullVisibility?: boolean;
+  strict?: boolean;
+  watch?: (newFrontendAppConfigs: AppConfig[]) => void;
 };
 
 export async function loadCliConfig(options: Options) {
@@ -70,6 +72,7 @@ export async function loadCliConfig(options: Options) {
     dependencies: localPackageNames,
     // Include the package.json in the project root if it exists
     packagePaths: [paths.resolveTargetRoot('package.json')],
+    noUndeclaredProperties: options.strict,
   });
 
   const { appConfigs } = await loadConfig({
@@ -78,6 +81,19 @@ export async function loadCliConfig(options: Options) {
       : undefined,
     configRoot: paths.targetRoot,
     configTargets: configTargets,
+    watch: options.watch && {
+      onChange(newAppConfigs) {
+        const newFrontendAppConfigs = schema.process(newAppConfigs, {
+          visibility: options.fullVisibility
+            ? ['frontend', 'backend', 'secret']
+            : ['frontend'],
+          withFilteredKeys: options.withFilteredKeys,
+          withDeprecatedKeys: options.withDeprecatedKeys,
+          ignoreSchemaErrors: !options.strict,
+        });
+        options.watch?.(newFrontendAppConfigs);
+      },
+    },
   });
 
   // printing to stderr to not clobber stdout in case the cli command
@@ -93,14 +109,18 @@ export async function loadCliConfig(options: Options) {
         : ['frontend'],
       withFilteredKeys: options.withFilteredKeys,
       withDeprecatedKeys: options.withDeprecatedKeys,
+      ignoreSchemaErrors: !options.strict,
     });
     const frontendConfig = ConfigReader.fromConfigs(frontendAppConfigs);
+
+    const fullConfig = ConfigReader.fromConfigs(appConfigs);
 
     return {
       schema,
       appConfigs,
       frontendConfig,
       frontendAppConfigs,
+      fullConfig,
     };
   } catch (error) {
     const maybeSchemaError = error as Error & { messages?: string[] };

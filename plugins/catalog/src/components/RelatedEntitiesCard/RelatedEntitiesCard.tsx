@@ -24,15 +24,17 @@ import {
 import React from 'react';
 import {
   InfoCard,
+  InfoCardVariants,
   Link,
   Progress,
   ResponseErrorPanel,
   TableColumn,
+  TableOptions,
 } from '@backstage/core-components';
 
 /** @public */
 export type RelatedEntitiesCardProps<T extends Entity> = {
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
   title: string;
   columns: TableColumn<T>[];
   entityKind?: string;
@@ -40,6 +42,7 @@ export type RelatedEntitiesCardProps<T extends Entity> = {
   emptyMessage: string;
   emptyHelpLink: string;
   asRenderableEntities: (entities: Entity[]) => T[];
+  tableOptions?: TableOptions;
 };
 
 /**
@@ -66,6 +69,7 @@ export function RelatedEntitiesCard<T extends Entity>(
     emptyMessage,
     emptyHelpLink,
     asRenderableEntities,
+    tableOptions = {},
   } = props;
 
   const { entity } = useEntity();
@@ -104,6 +108,7 @@ export function RelatedEntitiesCard<T extends Entity>(
       }
       columns={columns}
       entities={asRenderableEntities(entities || [])}
+      tableOptions={tableOptions}
     />
   );
 }

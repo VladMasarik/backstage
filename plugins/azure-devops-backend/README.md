@@ -30,9 +30,8 @@ Here's how to get the backend up and running:
 1. First we need to add the `@backstage/plugin-azure-devops-backend` package to your backend:
 
    ```sh
-   # From the Backstage root directory
-   cd packages/backend
-   yarn add @backstage/plugin-azure-devops-backend
+   # From your Backstage root directory
+   yarn add --cwd packages/backend @backstage/plugin-azure-devops-backend
    ```
 
 2. Then we will create a new file named `packages/backend/src/plugins/azure-devops.ts`, and add the
@@ -49,6 +48,7 @@ Here's how to get the backend up and running:
      return createRouter({
        logger: env.logger,
        config: env.config,
+       reader: env.reader,
      });
    }
    ```
@@ -60,12 +60,34 @@ Here's how to get the backend up and running:
    // ...
    async function main() {
      // ...
+     // Add this line under the other lines that follow the useHotMemoize pattern
      const azureDevOpsEnv = useHotMemoize(module, () => createEnv('azure-devops'));
+     // ...
+     // Insert this line under the other lines that add their routers to apiRouter in the same way
      apiRouter.use('/azure-devops', await azureDevOps(azureDevOpsEnv));
    ```
 
 4. Now run `yarn start-backend` from the repo root
 5. Finally open `http://localhost:7007/api/azure-devops/health` in a browser and it should return `{"status":"ok"}`
+
+#### New Backend System
+
+The Azure DevOps backend plugin has support for the [new backend system](https://backstage.io/docs/backend-system/), here's how you can set that up:
+
+In your `packages/backend/src/index.ts` make the following changes:
+
+```diff
+  import { createBackend } from '@backstage/backend-defaults';
++ import { azureDevOpsPlugin } from '@backstage/plugin-azure-devops-backend';
+
+  const backend = createBackend();
+
+  // ... other feature additions
+
++ backend.add(azureDevOpsPlugin());
+
+  backend.start();
+```
 
 ## Links
 

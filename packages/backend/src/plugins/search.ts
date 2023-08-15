@@ -15,18 +15,19 @@
  */
 
 import { useHotCleanup } from '@backstage/backend-common';
+import { DefaultAdrCollatorFactory } from '@backstage/plugin-adr-backend';
 import { DefaultCatalogCollatorFactory } from '@backstage/plugin-catalog-backend';
+import { ToolDocumentCollatorFactory } from '@backstage/plugin-explore-backend';
 import { createRouter } from '@backstage/plugin-search-backend';
 import { ElasticSearchSearchEngine } from '@backstage/plugin-search-backend-module-elasticsearch';
 import { PgSearchEngine } from '@backstage/plugin-search-backend-module-pg';
 import {
   IndexBuilder,
   LunrSearchEngine,
-  SearchEngine,
 } from '@backstage/plugin-search-backend-node';
+import { SearchEngine } from '@backstage/plugin-search-common';
 import { DefaultTechDocsCollatorFactory } from '@backstage/plugin-techdocs-backend';
 import { Router } from 'express';
-import { Duration } from 'luxon';
 import { PluginEnvironment } from '../types';
 
 async function createSearchEngine(
@@ -40,7 +41,9 @@ async function createSearchEngine(
   }
 
   if (await PgSearchEngine.supported(env.database)) {
-    return await PgSearchEngine.from({ database: env.database });
+    return await PgSearchEngine.fromConfig(env.config, {
+      database: env.database,
+    });
   }
 
   return new LunrSearchEngine({ logger: env.logger });
@@ -57,15 +60,27 @@ export default async function createPlugin(
   });
 
   const schedule = env.scheduler.createScheduledTaskRunner({
-    frequency: Duration.fromObject({ minutes: 10 }),
-    timeout: Duration.fromObject({ minutes: 15 }),
+    frequency: { minutes: 10 },
+    timeout: { minutes: 15 },
     // A 3 second delay gives the backend server a chance to initialize before
     // any collators are executed, which may attempt requests against the API.
-    initialDelay: Duration.fromObject({ seconds: 3 }),
+    initialDelay: { seconds: 3 },
   });
 
   // Collators are responsible for gathering documents known to plugins. This
   // particular collator gathers entities from the software catalog.
+  indexBuilder.addCollator({
+    schedule,
+    factory: DefaultAdrCollatorFactory.fromConfig({
+      cache: env.cache,
+      config: env.config,
+      discovery: env.discovery,
+      logger: env.logger,
+      reader: env.reader,
+      tokenManager: env.tokenManager,
+    }),
+  });
+
   indexBuilder.addCollator({
     schedule,
     factory: DefaultCatalogCollatorFactory.fromConfig(env.config, {
@@ -80,6 +95,14 @@ export default async function createPlugin(
       discovery: env.discovery,
       logger: env.logger,
       tokenManager: env.tokenManager,
+    }),
+  });
+
+  indexBuilder.addCollator({
+    schedule,
+    factory: ToolDocumentCollatorFactory.fromConfig(env.config, {
+      discovery: env.discovery,
+      logger: env.logger,
     }),
   });
 

@@ -15,37 +15,39 @@
  */
 
 import fs from 'fs-extra';
-import { createTemplateAction } from '../../createTemplateAction';
+import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
 import * as yaml from 'yaml';
-import { Entity } from '@backstage/catalog-model';
 import { resolveSafeChildPath } from '@backstage/backend-common';
+import { z } from 'zod';
+import { examples } from './write.examples';
+
+const id = 'catalog:write';
 
 /**
  * Writes a catalog descriptor file containing the provided entity to a path in the workspace.
  * @public
  */
+
 export function createCatalogWriteAction() {
-  return createTemplateAction<{ filePath?: string; entity: Entity }>({
-    id: 'catalog:write',
+  return createTemplateAction({
+    id,
     description: 'Writes the catalog-info.yaml for your template',
     schema: {
-      input: {
-        type: 'object',
-        properties: {
-          filePath: {
-            title: 'Catalog file path',
-            description: 'Defaults to catalog-info.yaml',
-            type: 'string',
-          },
-          entity: {
-            title: 'Entity info to write catalog-info.yaml',
-            description:
-              'You can provide the same values used in the Entity schema.',
-            type: 'object',
-          },
-        },
-      },
+      input: z.object({
+        filePath: z
+          .string()
+          .optional()
+          .describe('Defaults to catalog-info.yaml'),
+        // TODO: this should reference an zod entity validator if it existed.
+        entity: z
+          .record(z.any())
+          .describe(
+            'You can provide the same values used in the Entity schema.',
+          ),
+      }),
     },
+    examples,
+    supportsDryRun: true,
     async handler(ctx) {
       ctx.logStream.write(`Writing catalog-info.yaml`);
       const { filePath, entity } = ctx.input;

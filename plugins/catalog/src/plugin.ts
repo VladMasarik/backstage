@@ -21,7 +21,11 @@ import {
   entityRouteRef,
   starredEntitiesApiRef,
 } from '@backstage/plugin-catalog-react';
-import { createComponentRouteRef, viewTechDocRouteRef } from './routes';
+import {
+  createComponentRouteRef,
+  createFromTemplateRouteRef,
+  viewTechDocRouteRef,
+} from './routes';
 import {
   createApiFactory,
   createComponentExtension,
@@ -31,6 +35,10 @@ import {
   fetchApiRef,
   storageApiRef,
 } from '@backstage/core-plugin-api';
+import {
+  createSearchResultListItemExtension,
+  SearchResultListItemExtensionProps,
+} from '@backstage/plugin-search-react';
 import { DefaultStarredEntitiesApi } from './apis';
 import { AboutCardProps } from './components/AboutCard';
 import { DefaultCatalogPageProps } from './components/CatalogPage';
@@ -42,7 +50,9 @@ import { HasResourcesCardProps } from './components/HasResourcesCard';
 import { HasSubcomponentsCardProps } from './components/HasSubcomponentsCard';
 import { HasSystemsCardProps } from './components/HasSystemsCard';
 import { RelatedEntitiesCardProps } from './components/RelatedEntitiesCard';
+import { CatalogSearchResultListItemProps } from './components/CatalogSearchResultListItem';
 import { rootRouteRef } from './routes';
+import { CatalogInputPluginOptions, CatalogPluginOptions } from './options';
 
 /** @public */
 export const catalogPlugin = createPlugin({
@@ -71,6 +81,15 @@ export const catalogPlugin = createPlugin({
   externalRoutes: {
     createComponent: createComponentRouteRef,
     viewTechDoc: viewTechDocRouteRef,
+    createFromTemplate: createFromTemplateRouteRef,
+  },
+  __experimentalConfigure(
+    options?: CatalogInputPluginOptions,
+  ): CatalogPluginOptions {
+    const defaultOptions = {
+      createButtonTitle: 'Create',
+    };
+    return { ...defaultOptions, ...options };
   },
 });
 
@@ -113,6 +132,17 @@ export const EntityLinksCard = catalogPlugin.provide(
     component: {
       lazy: () =>
         import('./components/EntityLinksCard').then(m => m.EntityLinksCard),
+    },
+  }),
+);
+
+/** @public */
+export const EntityLabelsCard = catalogPlugin.provide(
+  createComponentExtension({
+    name: 'EntityLabelsCard',
+    component: {
+      lazy: () =>
+        import('./components/EntityLabelsCard').then(m => m.EntityLabelsCard),
     },
   }),
 );
@@ -227,5 +257,19 @@ export const RelatedEntitiesCard: <T extends Entity>(
           m => m.RelatedEntitiesCard,
         ),
     },
+  }),
+);
+
+/** @public */
+export const CatalogSearchResultListItem: (
+  props: SearchResultListItemExtensionProps<CatalogSearchResultListItemProps>,
+) => JSX.Element | null = catalogPlugin.provide(
+  createSearchResultListItemExtension({
+    name: 'CatalogSearchResultListItem',
+    component: () =>
+      import('./components/CatalogSearchResultListItem').then(
+        m => m.CatalogSearchResultListItem,
+      ),
+    predicate: result => result.type === 'software-catalog',
   }),
 );

@@ -28,25 +28,33 @@ import {
   TokenManager,
 } from '@backstage/backend-common';
 import { assertError, NotFoundError } from '@backstage/errors';
-import { CatalogClient } from '@backstage/catalog-client';
+import { CatalogApi, CatalogClient } from '@backstage/catalog-client';
 import { Config } from '@backstage/config';
 import { createOidcRouter, TokenFactory, KeyStores } from '../identity';
 import session from 'express-session';
+import connectSessionKnex from 'connect-session-knex';
 import passport from 'passport';
 import { Minimatch } from 'minimatch';
 import { CatalogAuthResolverContext } from '../lib/resolvers';
+import { AuthDatabase } from '../database/AuthDatabase';
+import { BACKSTAGE_SESSION_EXPIRATION } from '../lib/session';
 
-type ProviderFactories = { [s: string]: AuthProviderFactory };
+/** @public */
+export type ProviderFactories = { [s: string]: AuthProviderFactory };
 
+/** @public */
 export interface RouterOptions {
   logger: Logger;
   database: PluginDatabaseManager;
   config: Config;
   discovery: PluginEndpointDiscovery;
   tokenManager: TokenManager;
+  tokenFactoryAlgorithm?: string;
   providerFactories?: ProviderFactories;
+  catalogApi?: CatalogApi;
 }
 
+/** @public */
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
@@ -56,35 +64,45 @@ export async function createRouter(
     discovery,
     database,
     tokenManager,
+    tokenFactoryAlgorithm,
     providerFactories,
+    catalogApi,
   } = options;
   const router = Router();
 
   const appUrl = config.getString('app.baseUrl');
   const authUrl = await discovery.getExternalBaseUrl('auth');
 
-  const keyStore = await KeyStores.fromConfig(config, { logger, database });
-  const keyDurationSeconds = 3600;
+  const authDb = AuthDatabase.create(database);
+  const keyStore = await KeyStores.fromConfig(config, {
+    logger,
+    database: authDb,
+  });
+  const keyDurationSeconds = BACKSTAGE_SESSION_EXPIRATION;
 
   const tokenIssuer = new TokenFactory({
     issuer: authUrl,
     keyStore,
     keyDurationSeconds,
     logger: logger.child({ component: 'token-factory' }),
+    algorithm: tokenFactoryAlgorithm,
   });
-  const catalogApi = new CatalogClient({ discoveryApi: discovery });
 
   const secret = config.getOptionalString('auth.session.secret');
   if (secret) {
     router.use(cookieParser(secret));
-    // TODO: Configure the server-side session storage.  The default MemoryStore is not designed for production
     const enforceCookieSSL = authUrl.startsWith('https');
+    const KnexSessionStore = connectSessionKnex(session);
     router.use(
       session({
         secret,
         saveUninitialized: false,
         resave: false,
         cookie: { secure: enforceCookieSSL ? 'auto' : false },
+        store: new KnexSessionStore({
+          createtable: false,
+          knex: await authDb.get(),
+        }),
       }),
     );
     router.use(passport.initialize());
@@ -108,7 +126,7 @@ export async function createRouter(
     allProviderFactories,
   )) {
     if (configuredProviders.includes(providerId)) {
-      logger.info(`Configuring provider, ${providerId}`);
+      logger.info(`Configuring auth provider: ${providerId}`);
       try {
         const provider = providerFactory({
           providerId,
@@ -119,13 +137,10 @@ export async function createRouter(
           },
           config: providersConfig.getConfig(providerId),
           logger,
-          tokenManager,
-          tokenIssuer,
-          discovery,
-          catalogApi,
           resolverContext: CatalogAuthResolverContext.create({
             logger,
-            catalogApi,
+            catalogApi:
+              catalogApi ?? new CatalogClient({ discoveryApi: discovery }),
             tokenIssuer,
             tokenManager,
           }),
@@ -141,6 +156,7 @@ export async function createRouter(
         }
         if (provider.refresh) {
           r.get('/refresh', provider.refresh.bind(provider));
+          r.post('/refresh', provider.refresh.bind(provider));
         }
 
         router.use(`/${providerId}`, r);
@@ -187,6 +203,7 @@ export async function createRouter(
   return router;
 }
 
+/** @public */
 export function createOriginFilter(
   config: Config,
 ): (origin: string) => boolean {

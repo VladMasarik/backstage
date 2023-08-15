@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { createTemplateAction } from '../../createTemplateAction';
-import { resolveSafeChildPath } from '@backstage/backend-common';
 
+import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
+import { resolveSafeChildPath } from '@backstage/backend-common';
 import { InputError } from '@backstage/errors';
 import fs from 'fs-extra';
+import { examples } from './rename.examples';
 
 /**
  * Creates a new action that allows renames of files and directories in the workspace.
@@ -33,6 +34,7 @@ export const createFilesystemRenameAction = () => {
   }>({
     id: 'fs:rename',
     description: 'Renames files and directories within the workspace',
+    examples,
     schema: {
       input: {
         required: ['files'],
@@ -66,6 +68,7 @@ export const createFilesystemRenameAction = () => {
         },
       },
     },
+    supportsDryRun: true,
     async handler(ctx) {
       if (!Array.isArray(ctx.input?.files)) {
         throw new InputError('files must be an Array');

@@ -16,7 +16,7 @@
 import { Entity } from '@backstage/catalog-model';
 import { ConfigReader } from '@backstage/config';
 import { AnnotateScmSlugEntityProcessor } from './AnnotateScmSlugEntityProcessor';
-import { LocationSpec } from '../../api';
+import { LocationSpec } from '@backstage/plugin-catalog-common';
 
 describe('AnnotateScmSlugEntityProcessor', () => {
   describe('github', () => {
@@ -106,6 +106,73 @@ describe('AnnotateScmSlugEntityProcessor', () => {
         kind: 'Component',
         metadata: {
           name: 'my-component',
+        },
+      });
+    });
+
+    it('should only process applicable kinds', async () => {
+      const component: Entity = {
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'Component',
+        metadata: {
+          name: 'my-component',
+        },
+      };
+
+      const api: Entity = {
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'API',
+        metadata: {
+          name: 'my-component',
+        },
+      };
+
+      const system: Entity = {
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'System',
+        metadata: {
+          name: 'my-component',
+        },
+      };
+
+      const location: LocationSpec = {
+        type: 'url',
+        target:
+          'https://github.com/backstage/backstage/blob/master/catalog-info.yaml',
+      };
+
+      const processor = AnnotateScmSlugEntityProcessor.fromConfig(
+        new ConfigReader({}),
+        { kinds: ['API', 'System'] },
+      );
+
+      expect(await processor.preProcessEntity(component, location)).toEqual({
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'Component',
+        metadata: {
+          name: 'my-component',
+        },
+      });
+
+      expect(await processor.preProcessEntity(api, location)).toEqual({
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'API',
+        metadata: {
+          name: 'my-component',
+          annotations: {
+            'github.com/project-slug': 'backstage/backstage',
+          },
+        },
+      });
+
+      expect(await processor.preProcessEntity(system, location)).toEqual({
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'System',
+        metadata: {
+          name: 'my-component',
+          annotations: {
+            'github.com/project-slug': 'backstage/backstage',
+          },
         },
       });
     });

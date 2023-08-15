@@ -29,12 +29,19 @@ const useStyles = makeStyles<BackstageTheme, { size: number }>(theme => ({
   },
 }));
 
-type Props = { size?: number };
+/** @public */
+export const UserSettingsSignInAvatar = (props: { size?: number }) => {
+  const { size } = props;
 
-export const UserSettingsSignInAvatar = ({ size }: Props) => {
   const { iconSize } = sidebarConfig;
   const classes = useStyles(size ? { size } : { size: iconSize });
   const { profile } = useUserProfile();
 
-  return <Avatar src={profile.picture} className={classes.avatar} />;
+  return (
+    <Avatar
+      src={profile.picture}
+      className={classes.avatar}
+      alt="Profile picture"
+    />
+  );
 };

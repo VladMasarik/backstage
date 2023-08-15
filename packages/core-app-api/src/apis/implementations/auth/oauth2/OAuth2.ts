@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { DefaultAuthConnector } from '../../../../lib/AuthConnector';
+import {
+  DefaultAuthConnector,
+  PopupOptions,
+} from '../../../../lib/AuthConnector';
 import { RefreshingAuthSessionManager } from '../../../../lib/AuthSessionManager';
 import { SessionManager } from '../../../../lib/AuthSessionManager/types';
 import {
@@ -38,6 +41,7 @@ import { OAuthApiCreateOptions } from '../types';
  */
 export type OAuth2CreateOptions = OAuthApiCreateOptions & {
   scopeTransform?: (scopes: string[]) => string[];
+  popupOptions?: PopupOptions;
 };
 
 export type OAuth2Response = {
@@ -72,15 +76,18 @@ export default class OAuth2
 {
   static create(options: OAuth2CreateOptions) {
     const {
+      configApi,
       discoveryApi,
       environment = 'development',
       provider = DEFAULT_PROVIDER,
       oauthRequestApi,
       defaultScopes = [],
       scopeTransform = x => x,
+      popupOptions,
     } = options;
 
     const connector = new DefaultAuthConnector({
+      configApi,
       discoveryApi,
       environment,
       provider,
@@ -101,6 +108,7 @@ export default class OAuth2
           },
         };
       },
+      popupOptions,
     });
 
     const sessionManager = new RefreshingAuthSessionManager({
@@ -153,7 +161,10 @@ export default class OAuth2
   }
 
   async getIdToken(options: AuthRequestOptions = {}) {
-    const session = await this.sessionManager.getSession(options);
+    const session = await this.sessionManager.getSession({
+      ...options,
+      scopes: new Set(['openid']),
+    });
     return session?.providerInfo.idToken ?? '';
   }
 

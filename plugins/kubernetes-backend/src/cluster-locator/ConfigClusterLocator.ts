@@ -37,8 +37,21 @@ export class ConfigClusterLocator implements KubernetesClustersSupplier {
           skipTLSVerify: c.getOptionalBoolean('skipTLSVerify') ?? false,
           skipMetricsLookup: c.getOptionalBoolean('skipMetricsLookup') ?? false,
           caData: c.getOptionalString('caData'),
+          caFile: c.getOptionalString('caFile'),
           authProvider: authProvider,
         };
+
+        const customResources = c.getOptionalConfigArray('customResources');
+        if (customResources) {
+          clusterDetails.customResources = customResources.map(cr => {
+            return {
+              group: cr.getString('group'),
+              apiVersion: cr.getString('apiVersion'),
+              plural: cr.getString('plural'),
+            };
+          });
+        }
+
         const dashboardUrl = c.getOptionalString('dashboardUrl');
         if (dashboardUrl) {
           clusterDetails.dashboardUrl = dashboardUrl;
@@ -61,10 +74,21 @@ export class ConfigClusterLocator implements KubernetesClustersSupplier {
 
             return { assumeRole, externalId, ...clusterDetails };
           }
+          case 'azure': {
+            return clusterDetails;
+          }
+          case 'oidc': {
+            const oidcTokenProvider = c.getString('oidcTokenProvider');
+
+            return { oidcTokenProvider, ...clusterDetails };
+          }
           case 'serviceAccount': {
             return clusterDetails;
           }
           case 'googleServiceAccount': {
+            return clusterDetails;
+          }
+          case 'aks': {
             return clusterDetails;
           }
           default: {

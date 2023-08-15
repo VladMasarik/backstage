@@ -18,14 +18,21 @@ The Airbrake plugin provides connectivity between Backstage and Airbrake (https:
    yarn add --cwd packages/backend @backstage/plugin-airbrake-backend
    ```
 
-3. Add the `EntityAirbrakeContent` to `packages/app/src/components/catalog/EntityPage.tsx` for all the entity pages you want Airbrake to be in:
+3. Add the `EntityAirbrakeContent` and `isAirbrakeAvailable` to `packages/app/src/components/catalog/EntityPage.tsx` for all the entity pages you want Airbrake to be in:
 
    ```typescript jsx
-   import { EntityAirbrakeContent } from '@backstage/plugin-airbrake';
+   import {
+     EntityAirbrakeContent,
+     isAirbrakeAvailable,
+   } from '@backstage/plugin-airbrake';
 
    const serviceEntityPage = (
      <EntityLayoutWrapper>
-       <EntityLayout.Route path="/airbrake" title="Airbrake">
+       <EntityLayout.Route
+         if={isAirbrakeAvailable}
+         path="/airbrake"
+         title="Airbrake"
+       >
          <EntityAirbrakeContent />
        </EntityLayout.Route>
      </EntityLayoutWrapper>
@@ -33,7 +40,11 @@ The Airbrake plugin provides connectivity between Backstage and Airbrake (https:
 
    const websiteEntityPage = (
      <EntityLayoutWrapper>
-       <EntityLayout.Route path="/airbrake" title="Airbrake">
+       <EntityLayout.Route
+         if={isAirbrakeAvailable}
+         path="/airbrake"
+         title="Airbrake"
+       >
          <EntityAirbrakeContent />
        </EntityLayout.Route>
      </EntityLayoutWrapper>
@@ -41,7 +52,11 @@ The Airbrake plugin provides connectivity between Backstage and Airbrake (https:
 
    const defaultEntityPage = (
      <EntityLayoutWrapper>
-       <EntityLayout.Route path="/airbrake" title="Airbrake">
+       <EntityLayout.Route
+         if={isAirbrakeAvailable}
+         path="/airbrake"
+         title="Airbrake"
+       >
          <EntityAirbrakeContent />
        </EntityLayout.Route>
      </EntityLayoutWrapper>
@@ -100,6 +115,21 @@ The Airbrake plugin provides connectivity between Backstage and Airbrake (https:
      annotations:
        airbrake.io/project-id: '123456'
    ```
+
+#### New Backend System
+
+The Airbrake backend plugin has support for the [new backend system](https://backstage.io/docs/backend-system/), here's how you can set that up:
+
+In your `packages/backend/src/index.ts` make the following changes:
+
+```diff
+  import { createBackend } from '@backstage/backend-defaults';
++ import { airbrakePlugin } from '@backstage/plugin-airbrake-backend';
+  const backend = createBackend();
+  // ... other feature additions
++ backend.add(airbrakePlugin());
+  backend.start();
+```
 
 ## Local Development
 

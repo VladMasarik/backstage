@@ -41,44 +41,62 @@ import classNames from 'classnames';
 import React from 'react';
 import useAsync from 'react-use/lib/useAsync';
 
-const useStyles = makeStyles((theme: BackstageTheme) => ({
-  graph: {
-    flex: 1,
-    minHeight: 0,
+const useStyles = makeStyles(
+  (theme: BackstageTheme) => ({
+    graph: {
+      minHeight: '100%',
+      flex: 1,
+    },
+    graphWrapper: {
+      display: 'flex',
+      height: '100%',
+    },
+    organizationNode: {
+      fill: theme.palette.secondary.light,
+      stroke: theme.palette.secondary.light,
+    },
+    groupNode: {
+      fill: theme.palette.primary.light,
+      stroke: theme.palette.primary.light,
+    },
+    centeredContent: {
+      padding: theme.spacing(1),
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: theme.palette.common.black,
+    },
+    legend: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      padding: theme.spacing(1),
+      '& .icon': {
+        verticalAlign: 'bottom',
+      },
+    },
+    textOrganization: {
+      color: theme.palette.secondary.contrastText,
+    },
+    textGroup: {
+      color: theme.palette.primary.contrastText,
+    },
+    textWrapper: {
+      display: '-webkit-box',
+      WebkitBoxOrient: 'vertical',
+      WebkitLineClamp: 2,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      textAlign: 'center',
+      fontWeight: 'bold',
+      fontSize: '20px',
+    },
+  }),
+  {
+    name: 'ExploreGroupsDiagram',
   },
-  organizationNode: {
-    fill: theme.palette.secondary.light,
-    stroke: theme.palette.secondary.light,
-  },
-  groupNode: {
-    fill: theme.palette.primary.light,
-    stroke: theme.palette.primary.light,
-  },
-  centeredContent: {
-    padding: theme.spacing(1),
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'black',
-  },
-  textOrganization: {
-    color: theme.palette.secondary.contrastText,
-  },
-  textGroup: {
-    color: theme.palette.primary.contrastText,
-  },
-  textWrapper: {
-    display: '-webkit-box',
-    WebkitBoxOrient: 'vertical',
-    WebkitLineClamp: 2,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: '20px',
-  },
-}));
+);
 
 function RenderNode(props: DependencyGraphTypes.RenderNodeProps<any>) {
   const nodeWidth = 180;
@@ -221,7 +239,7 @@ export function GroupsDiagram() {
   }
 
   return (
-    <>
+    <div className={classes.graphWrapper}>
       <DependencyGraph
         nodes={nodes}
         edges={edges}
@@ -229,14 +247,18 @@ export function GroupsDiagram() {
         direction={DependencyGraphTypes.Direction.RIGHT_LEFT}
         renderNode={RenderNode}
         className={classes.graph}
+        fit="contain"
       />
+
       <Typography
         variant="caption"
-        style={{ display: 'block', textAlign: 'right' }}
+        color="textSecondary"
+        display="block"
+        className={classes.legend}
       >
-        <ZoomOutMap style={{ verticalAlign: 'bottom' }} /> Use pinch &amp; zoom
-        to move around the diagram.
+        <ZoomOutMap className="icon" /> Use pinch &amp; zoom to move around the
+        diagram.
       </Typography>
-    </>
+    </div>
   );
 }

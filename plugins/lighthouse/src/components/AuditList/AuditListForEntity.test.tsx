@@ -16,50 +16,44 @@
 
 import { Entity } from '@backstage/catalog-model';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
-import { lightTheme } from '@backstage/theme';
-import { ThemeProvider } from '@material-ui/core';
-import { render } from '@testing-library/react';
+import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import React from 'react';
-import { MemoryRouter } from 'react-router-dom';
 import {
-  lighthouseApiRef,
   LighthouseRestApi,
   WebsiteListResponse,
-} from '../../api';
+} from '@backstage/plugin-lighthouse-common';
+import { lighthouseApiRef } from '../../api';
 import { useWebsiteForEntity } from '../../hooks/useWebsiteForEntity';
 import * as data from '../../__fixtures__/website-list-response.json';
 import { AuditListForEntity } from './AuditListForEntity';
-
-import { ApiProvider } from '@backstage/core-app-api';
-import { errorApiRef } from '@backstage/core-plugin-api';
-import { TestApiRegistry } from '@backstage/test-utils';
+import { rootRouteRef } from '../../plugin';
+import { fireEvent, screen } from '@testing-library/react';
 
 jest.mock('../../hooks/useWebsiteForEntity', () => ({
   useWebsiteForEntity: jest.fn(),
 }));
 
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom');
+  const mockNavigation = jest.fn();
+  return {
+    ...actual,
+    useNavigate: jest.fn(() => mockNavigation),
+  };
+});
+
+const useWebsiteForEntityMock = useWebsiteForEntity as jest.Mock;
+
 const websiteListResponse = data as WebsiteListResponse;
 const entityWebsite = websiteListResponse.items[0];
 
+const testAppOptions = {
+  mountedRoutes: { '/': rootRouteRef },
+};
+
 describe('<AuditListTableForEntity />', () => {
-  let apis: TestApiRegistry;
-
-  const mockErrorApi: jest.Mocked<typeof errorApiRef.T> = {
-    post: jest.fn(),
-    error$: jest.fn(),
-  };
-
-  beforeEach(() => {
-    apis = TestApiRegistry.from(
-      [lighthouseApiRef, new LighthouseRestApi('http://lighthouse')],
-      [errorApiRef, mockErrorApi],
-    );
-
-    (useWebsiteForEntity as jest.Mock).mockReturnValue({
-      value: entityWebsite,
-      loading: false,
-      error: null,
-    });
+  afterEach(() => {
+    jest.resetAllMocks();
   });
 
   const entity: Entity = {
@@ -78,66 +72,93 @@ describe('<AuditListTableForEntity />', () => {
     },
   };
 
-  const subject = () =>
-    render(
-      <ThemeProvider theme={lightTheme}>
-        <MemoryRouter>
-          <ApiProvider apis={apis}>
-            <EntityProvider entity={entity}>
-              <AuditListForEntity />
-            </EntityProvider>
-          </ApiProvider>
-        </MemoryRouter>
-      </ThemeProvider>,
-    );
+  const subject = () => (
+    <TestApiProvider
+      apis={[[lighthouseApiRef, new LighthouseRestApi('http://lighthouse')]]}
+    >
+      <EntityProvider entity={entity}>
+        <AuditListForEntity />
+      </EntityProvider>
+    </TestApiProvider>
+  );
 
   it('renders the audit list for the entity', async () => {
-    const { findByText } = subject();
-    expect(await findByText(entityWebsite.url)).toBeInTheDocument();
+    useWebsiteForEntityMock.mockReturnValue({
+      value: entityWebsite,
+      loading: false,
+      error: null,
+    });
+    const rendered = await renderInTestApp(subject(), testAppOptions);
+    const create_audit_button = await rendered.findByText('Create New Audit');
+    const support_button = await rendered.findByText('Support');
+    expect(await rendered.findByText(entityWebsite.url)).toBeInTheDocument();
+    expect(await rendered.findByText('Latest Audit')).toBeInTheDocument();
+    expect(create_audit_button).toBeInTheDocument();
+    expect(support_button).toBeInTheDocument();
   });
 
-  describe('where the data is loading', () => {
-    beforeEach(() => {
-      (useWebsiteForEntity as jest.Mock).mockReturnValue({
-        value: null,
-        loading: true,
-        error: null,
-      });
+  it('renders a Progress element when the data is loading', async () => {
+    useWebsiteForEntityMock.mockReturnValue({
+      value: null,
+      loading: true,
+      error: null,
     });
 
-    it('renders a Progress element', async () => {
-      const { findByTestId } = subject();
-      expect(await findByTestId('progress')).toBeInTheDocument();
-    });
+    const { findByTestId } = await renderInTestApp(subject(), testAppOptions);
+    expect(await findByTestId('progress')).toBeInTheDocument();
   });
 
-  describe('where there is an error loading data', () => {
-    beforeEach(() => {
-      (useWebsiteForEntity as jest.Mock).mockReturnValue({
-        value: null,
-        loading: false,
-        error: 'error',
-      });
+  it('renders a WarningPanel when there is an error loading data', async () => {
+    useWebsiteForEntityMock.mockReturnValue({
+      value: null,
+      loading: false,
+      error: { name: 'error', message: 'error loading data' },
     });
-
-    it('renders nothing', async () => {
-      const { queryByTestId } = subject();
-      expect(await queryByTestId('AuditListTable')).toBeNull();
-    });
+    await renderInTestApp(subject(), testAppOptions);
+    const expandIcon = screen.getByText('Error: Could not load audit list.');
+    fireEvent.click(expandIcon);
+    expect(
+      screen.getByText('Error: Could not load audit list.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('error loading data')).toBeInTheDocument();
   });
 
-  describe('where there is not data', () => {
-    beforeEach(() => {
-      (useWebsiteForEntity as jest.Mock).mockReturnValue({
-        value: null,
-        loading: false,
-        error: null,
-      });
+  it('renders an empty table when there is no data', async () => {
+    useWebsiteForEntityMock.mockReturnValue({
+      value: null,
+      loading: false,
+      error: null,
     });
 
-    it('renders nothing', async () => {
-      const { queryByTestId } = subject();
-      expect(await queryByTestId('AuditListTable')).toBeNull();
+    const rendered = await renderInTestApp(subject(), testAppOptions);
+    const create_audit_button = await rendered.findByText('Create New Audit');
+    const support_button = await rendered.findByText('Support');
+    expect(
+      await rendered.findByText('No records to display'),
+    ).toBeInTheDocument();
+    expect(await rendered.findByText('Latest Audit')).toBeInTheDocument();
+    expect(create_audit_button).toBeInTheDocument();
+    expect(support_button).toBeInTheDocument();
+  });
+
+  it('renders an empty table when there is no data and error loading data due to empty database query result', async () => {
+    useWebsiteForEntityMock.mockReturnValue({
+      value: null,
+      loading: false,
+      error: {
+        name: 'error',
+        message: 'no audited website found for url unit-test-url',
+      },
     });
+
+    const rendered = await renderInTestApp(subject(), testAppOptions);
+    const create_audit_button = await rendered.findByText('Create New Audit');
+    const support_button = await rendered.findByText('Support');
+    expect(
+      await rendered.findByText('No records to display'),
+    ).toBeInTheDocument();
+    expect(await rendered.findByText('Latest Audit')).toBeInTheDocument();
+    expect(create_audit_button).toBeInTheDocument();
+    expect(support_button).toBeInTheDocument();
   });
 });

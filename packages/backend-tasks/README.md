@@ -15,14 +15,13 @@ then make use of its facilities as necessary:
 
 ```typescript
 import { TaskScheduler } from '@backstage/backend-tasks';
-import { Duration } from 'luxon';
 
 const scheduler = TaskScheduler.fromConfig(rootConfig).forPlugin('my-plugin');
 
 await scheduler.scheduleTask({
   id: 'refresh_things',
   frequency: { cron: '*/5 * * * *' }, // every 5 minutes, also supports Duration
-  timeout: Duration.fromObject({ minutes: 15 }),
+  timeout: { minutes: 15 },
   fn: async () => {
     await entityProvider.run();
   },
@@ -36,4 +35,4 @@ When working with the `@backstage/backend-tasks` library you may run into your t
 ## Documentation
 
 - [Backstage Readme](https://github.com/backstage/backstage/blob/master/README.md)
-- [Backstage Documentation](https://github.com/backstage/backstage/blob/master/docs/README.md)
+- [Backstage Documentation](https://backstage.io/docs)

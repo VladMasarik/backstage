@@ -17,6 +17,7 @@
 import express from 'express';
 import {
   Client,
+  ClientAuthMethod,
   Issuer,
   Strategy as OidcStrategy,
   TokenSet,
@@ -40,10 +41,15 @@ import {
 import {
   AuthHandler,
   AuthResolverContext,
-  RedirectInfo,
+  OAuthStartResponse,
   SignInResolver,
 } from '../types';
 import { createAuthProviderIntegration } from '../createAuthProviderIntegration';
+import {
+  commonByEmailLocalPartResolver,
+  commonByEmailResolver,
+} from '../resolvers';
+import { BACKSTAGE_SESSION_EXPIRATION } from '../../lib/session';
 
 type PrivateInfo = {
   refreshToken?: string;
@@ -67,6 +73,7 @@ export type Options = OAuthProviderOptions & {
   metadataUrl: string;
   scope?: string;
   prompt?: string;
+  tokenEndpointAuthMethod?: ClientAuthMethod;
   tokenSignedResponseAlg?: string;
   signInResolver?: SignInResolver<OidcAuthResult>;
   authHandler: AuthHandler<OidcAuthResult>;
@@ -91,7 +98,7 @@ export class OidcAuthProvider implements OAuthHandlers {
     this.resolverContext = options.resolverContext;
   }
 
-  async start(req: OAuthStartRequest): Promise<RedirectInfo> {
+  async start(req: OAuthStartRequest): Promise<OAuthStartResponse> {
     const { strategy } = await this.implementation;
     const options: Record<string, string> = {
       scope: req.scope || this.scope || 'openid profile email',
@@ -139,6 +146,8 @@ export class OidcAuthProvider implements OAuthHandlers {
       client_secret: options.clientSecret,
       redirect_uris: [options.callbackUrl],
       response_types: ['code'],
+      token_endpoint_auth_method:
+        options.tokenEndpointAuthMethod || 'client_secret_basic',
       id_token_signed_response_alg: options.tokenSignedResponseAlg || 'RS256',
       scope: options.scope || '',
     });
@@ -146,7 +155,7 @@ export class OidcAuthProvider implements OAuthHandlers {
     const strategy = new OidcStrategy(
       {
         client,
-        passReqToCallback: false as true,
+        passReqToCallback: false,
       },
       (
         tokenset: TokenSet,
@@ -175,17 +184,15 @@ export class OidcAuthProvider implements OAuthHandlers {
   // Then populate the profile with it
   private async handleResult(result: OidcAuthResult): Promise<OAuthResponse> {
     const { profile } = await this.authHandler(result, this.resolverContext);
-    const response: OAuthResponse = {
-      providerInfo: {
-        idToken: result.tokenset.id_token,
-        accessToken: result.tokenset.access_token!,
-        scope: result.tokenset.scope!,
-        expiresInSeconds: result.tokenset.expires_in,
-      },
-      profile,
-    };
+
+    const expiresInSeconds =
+      result.tokenset.expires_in === undefined
+        ? BACKSTAGE_SESSION_EXPIRATION
+        : Math.min(result.tokenset.expires_in, BACKSTAGE_SESSION_EXPIRATION);
+
+    let backstageIdentity = undefined;
     if (this.signInResolver) {
-      response.backstageIdentity = await this.signInResolver(
+      backstageIdentity = await this.signInResolver(
         {
           result,
           profile,
@@ -194,21 +201,18 @@ export class OidcAuthProvider implements OAuthHandlers {
       );
     }
 
-    return response;
+    return {
+      backstageIdentity,
+      providerInfo: {
+        idToken: result.tokenset.id_token,
+        accessToken: result.tokenset.access_token!,
+        scope: result.tokenset.scope!,
+        expiresInSeconds,
+      },
+      profile,
+    };
   }
 }
-
-/**
- * @public
- * @deprecated This type has been inlined into the create method and will be removed.
- */
-export type OidcProviderOptions = {
-  authHandler?: AuthHandler<OidcAuthResult>;
-
-  signIn?: {
-    resolver: SignInResolver<OidcAuthResult>;
-  };
-};
 
 /**
  * Auth provider integration for generic OpenID Connect auth
@@ -232,6 +236,9 @@ export const oidc = createAuthProviderIntegration({
           customCallbackUrl ||
           `${globalConfig.baseUrl}/${providerId}/handler/frame`;
         const metadataUrl = envConfig.getString('metadataUrl');
+        const tokenEndpointAuthMethod = envConfig.getOptionalString(
+          'tokenEndpointAuthMethod',
+        ) as ClientAuthMethod;
         const tokenSignedResponseAlg = envConfig.getOptionalString(
           'tokenSignedResponseAlg',
         );
@@ -252,6 +259,7 @@ export const oidc = createAuthProviderIntegration({
           clientId,
           clientSecret,
           callbackUrl,
+          tokenEndpointAuthMethod,
           tokenSignedResponseAlg,
           metadataUrl,
           scope,
@@ -262,16 +270,19 @@ export const oidc = createAuthProviderIntegration({
         });
 
         return OAuthAdapter.fromConfig(globalConfig, provider, {
-          disableRefresh: false,
           providerId,
           callbackUrl,
         });
       });
   },
+  resolvers: {
+    /**
+     * Looks up the user by matching their email local part to the entity name.
+     */
+    emailLocalPartMatchingUserEntityName: () => commonByEmailLocalPartResolver,
+    /**
+     * Looks up the user by matching their email to the entity email.
+     */
+    emailMatchingUserEntityProfileEmail: () => commonByEmailResolver,
+  },
 });
-
-/**
- * @public
- * @deprecated Use `providers.oidc.create` instead
- */
-export const createOidcProvider = oidc.create;

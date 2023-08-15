@@ -26,33 +26,38 @@ import {
   makeStyles,
   Typography,
 } from '@material-ui/core';
-import { Button } from '@backstage/core-components';
+import { LinkButton } from '@backstage/core-components';
 import classNames from 'classnames';
 import React from 'react';
 
 // TODO: Align styling between Domain and ToolCard
 
-const useStyles = makeStyles<BackstageTheme>(theme => ({
-  media: {
-    height: 128,
+const useStyles = makeStyles<BackstageTheme>(
+  theme => ({
+    media: {
+      height: 128,
+    },
+    mediaContain: {
+      backgroundSize: 'contain',
+    },
+    lifecycle: {
+      lineHeight: '0.8em',
+      color: theme.palette.common.white,
+    },
+    ga: {
+      backgroundColor: theme.palette.status.ok,
+    },
+    alpha: {
+      backgroundColor: theme.palette.status.error,
+    },
+    beta: {
+      backgroundColor: theme.palette.status.warning,
+    },
+  }),
+  {
+    name: 'ExploreToolCard',
   },
-  mediaContain: {
-    backgroundSize: 'contain',
-  },
-  lifecycle: {
-    lineHeight: '0.8em',
-    color: 'white',
-  },
-  ga: {
-    backgroundColor: theme.palette.status.ok,
-  },
-  alpha: {
-    backgroundColor: theme.palette.status.error,
-  },
-  beta: {
-    backgroundColor: theme.palette.status.warning,
-  },
-}));
+);
 
 type Props = {
   card: ExploreTool;
@@ -74,7 +79,7 @@ export const ToolCard = ({ card, objectFit }: Props) => {
         })}
       />
       <CardContent>
-        <Typography paragraph variant="h5">
+        <Typography variant="h5">
           {title}{' '}
           {lifecycle && lifecycle.toLocaleLowerCase('en-US') !== 'ga' && (
             <Chip
@@ -97,9 +102,9 @@ export const ToolCard = ({ card, objectFit }: Props) => {
         )}
       </CardContent>
       <CardActions>
-        <Button color="primary" to={url} disabled={!url}>
+        <LinkButton color="primary" to={url} disabled={!url}>
           Explore
-        </Button>
+        </LinkButton>
       </CardActions>
     </Card>
   );

@@ -14,16 +14,23 @@
  * limitations under the License.
  */
 
+import { Entity } from '@backstage/catalog-model';
 import { Logger } from 'winston';
 import type { JsonObject } from '@backstage/types';
 import type {
+  CustomResourceMatcher,
   FetchResponse,
   KubernetesFetchError,
+  KubernetesRequestAuth,
   KubernetesRequestBody,
   ObjectsByEntityResponse,
 } from '@backstage/plugin-kubernetes-common';
-import { PodStatus } from '@kubernetes/client-node/dist/top';
+import { Config } from '@backstage/config';
 
+/**
+ *
+ * @public
+ */
 export interface ObjectFetchParams {
   serviceId: string;
   clusterDetails:
@@ -37,25 +44,35 @@ export interface ObjectFetchParams {
   namespace?: string;
 }
 
-// Fetches information from a kubernetes cluster using the cluster details object
-// to target a specific cluster
+/**
+ * Fetches information from a kubernetes cluster using the cluster details object to target a specific cluster
+ *
+ * @public
+ */
 export interface KubernetesFetcher {
   fetchObjectsForService(
     params: ObjectFetchParams,
   ): Promise<FetchResponseWrapper>;
-  fetchPodMetricsByNamespace(
+  fetchPodMetricsByNamespaces(
     clusterDetails: ClusterDetails,
-    namespace: string,
-  ): Promise<PodStatus[]>;
+    namespaces: Set<string>,
+    labelSelector?: string,
+  ): Promise<FetchResponseWrapper>;
 }
 
+/**
+ *
+ * @public
+ */
 export interface FetchResponseWrapper {
   errors: KubernetesFetchError[];
   responses: FetchResponse[];
 }
 
-// TODO fairly sure there's a easier way to do this
-
+/**
+ *
+ * @public
+ */
 export interface ObjectToFetch {
   objectType: KubernetesObjectTypes;
   group: string;
@@ -63,23 +80,39 @@ export interface ObjectToFetch {
   plural: string;
 }
 
+/**
+ *
+ * @public
+ */
 export interface CustomResource extends ObjectToFetch {
   objectType: 'customresources';
 }
 
+/**
+ *
+ * @public
+ */
 export type KubernetesObjectTypes =
   | 'pods'
   | 'services'
   | 'configmaps'
   | 'deployments'
+  | 'limitranges'
   | 'replicasets'
   | 'horizontalpodautoscalers'
   | 'jobs'
   | 'cronjobs'
   | 'ingresses'
-  | 'customresources';
+  | 'customresources'
+  | 'statefulsets'
+  | 'daemonsets';
+// If updating this list, also make sure to update
+// `objectTypes` and `apiVersionOverrides` in config.d.ts!
 
-// Used to load cluster details from different sources
+/**
+ * Used to load cluster details from different sources
+ * @public
+ */
 export interface KubernetesClustersSupplier {
   /**
    * Returns the cached list of clusters.
@@ -90,13 +123,35 @@ export interface KubernetesClustersSupplier {
   getClusters(): Promise<ClusterDetails[]>;
 }
 
-// Used to locate which cluster(s) a service is running on
-export interface KubernetesServiceLocator {
-  getClustersByServiceId(serviceId: string): Promise<ClusterDetails[]>;
+/**
+ * @public
+ */
+export interface ServiceLocatorRequestContext {
+  objectTypesToFetch: Set<ObjectToFetch>;
+  customResources: CustomResourceMatcher[];
 }
 
+/**
+ * Used to locate which cluster(s) a service is running on
+ * @public
+ */
+export interface KubernetesServiceLocator {
+  getClustersByEntity(
+    entity: Entity,
+    requestContext: ServiceLocatorRequestContext,
+  ): Promise<{ clusters: ClusterDetails[] }>;
+}
+
+/**
+ *
+ * @public
+ */
 export type ServiceLocatorMethod = 'multiTenant' | 'http'; // TODO implement http
 
+/**
+ *
+ * @public
+ */
 export interface ClusterDetails {
   /**
    * Specifies the name of the Kubernetes cluster.
@@ -105,6 +160,10 @@ export interface ClusterDetails {
   url: string;
   authProvider: string;
   serviceAccountToken?: string | undefined;
+  /**
+   * oidc provider used to get id tokens to authenticate against kubernetes
+   */
+  oidcTokenProvider?: string | undefined;
   skipTLSVerify?: boolean;
   /**
    * Whether to skip the lookup to the metrics server to retrieve pod resource usage.
@@ -112,6 +171,7 @@ export interface ClusterDetails {
    */
   skipMetricsLookup?: boolean;
   caData?: string | undefined;
+  caFile?: string | undefined;
   /**
    * Specifies the link to the Kubernetes dashboard managing this cluster.
    * @remarks
@@ -144,27 +204,85 @@ export interface ClusterDetails {
    * @see dashboardApp
    */
   dashboardParameters?: JsonObject;
+  /**
+   * Specifies which custom resources to look for when returning an entity's
+   * Kubernetes resources.
+   */
+  customResources?: CustomResourceMatcher[];
 }
 
+/**
+ *
+ * @public
+ */
 export interface GKEClusterDetails extends ClusterDetails {}
+
+/**
+ *
+ * @public
+ */
+export interface AzureClusterDetails extends ClusterDetails {}
+
+/**
+ *
+ * @public
+ */
 export interface ServiceAccountClusterDetails extends ClusterDetails {}
+
+/**
+ *
+ * @public
+ */
 export interface AWSClusterDetails extends ClusterDetails {
   assumeRole?: string;
   externalId?: string;
 }
 
+/**
+ *
+ * @public
+ */
 export interface KubernetesObjectsProviderOptions {
   logger: Logger;
+  config: Config;
   fetcher: KubernetesFetcher;
   serviceLocator: KubernetesServiceLocator;
   customResources: CustomResource[];
   objectTypesToFetch?: ObjectToFetch[];
 }
 
+/**
+ *
+ * @public
+ */
 export type ObjectsByEntityRequest = KubernetesRequestBody;
 
+/**
+ *
+ * @public
+ */
+export interface KubernetesObjectsByEntity {
+  entity: Entity;
+  auth: KubernetesRequestAuth;
+}
+
+/**
+ *
+ * @public
+ */
+export interface CustomResourcesByEntity extends KubernetesObjectsByEntity {
+  customResources: CustomResourceMatcher[];
+}
+
+/**
+ *
+ * @public
+ */
 export interface KubernetesObjectsProvider {
   getKubernetesObjectsByEntity(
-    request: ObjectsByEntityRequest,
+    kubernetesObjectsByEntity: KubernetesObjectsByEntity,
+  ): Promise<ObjectsByEntityResponse>;
+  getCustomResourcesByEntity(
+    customResourcesByEntity: CustomResourcesByEntity,
   ): Promise<ObjectsByEntityResponse>;
 }

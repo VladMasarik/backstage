@@ -13,16 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import { trimStart } from 'lodash';
-import { GerritIntegrationConfig } from '.';
+import { GerritIntegrationConfig } from './config';
 
 const GERRIT_BODY_PREFIX = ")]}'";
-
-type GitFile = {
-  branch: string;
-  filePath: string;
-  project: string;
-};
 
 /**
  * Parse a Gitiles URL and return branch, file path and project.
@@ -41,18 +36,29 @@ type GitFile = {
  * the urls point to an actual Gitiles installation.
  *
  * Gitiles url:
- * https://g.com/optional_path/{project}/+/refs/heads/{branch}/{filePath}
+ * https://g.com/optional_path/\{project\}/+/refs/heads/\{branch\}/\{filePath\}
+ * https://g.com/a/optional_path/\{project\}/+/refs/heads/\{branch\}/\{filePath\}
  *
  *
  * @param url - An URL pointing to a file stored in git.
  * @public
  */
 
-export function parseGitilesUrl(
+export function parseGerritGitilesUrl(
   config: GerritIntegrationConfig,
   url: string,
-): GitFile {
-  const urlPath = url.replace(config.gitilesBaseUrl!, '');
+): { branch: string; filePath: string; project: string } {
+  const baseUrlParse = new URL(config.gitilesBaseUrl!);
+  const urlParse = new URL(url);
+
+  // Remove the gerrit authentication prefix '/a/' from the url
+  // In case of the gitilesBaseUrl is https://review.gerrit.com/plugins/gitiles
+  // and the url provided is https://review.gerrit.com/a/plugins/gitiles/...
+  // remove the prefix only if the pathname start with '/a/'
+  const urlPath = urlParse.pathname
+    .substring(urlParse.pathname.startsWith('/a/') ? 2 : 0)
+    .replace(baseUrlParse.pathname, '');
+
   const parts = urlPath.split('/').filter(p => !!p);
 
   const projectEndIndex = parts.indexOf('+');
@@ -77,6 +83,48 @@ export function parseGitilesUrl(
 }
 
 /**
+ * Build a Gerrit Gitiles url that targets a specific path.
+ *
+ * @param config - A Gerrit provider config.
+ * @param project - The name of the git project
+ * @param branch - The branch we will target.
+ * @param filePath - The absolute file path.
+ * @public
+ */
+export function buildGerritGitilesUrl(
+  config: GerritIntegrationConfig,
+  project: string,
+  branch: string,
+  filePath: string,
+): string {
+  return `${
+    config.gitilesBaseUrl
+  }/${project}/+/refs/heads/${branch}/${trimStart(filePath, '/')}`;
+}
+
+/**
+ * Build a Gerrit Gitiles archive url that targets a specific branch and path
+ *
+ * @param config - A Gerrit provider config.
+ * @param project - The name of the git project
+ * @param branch - The branch we will target.
+ * @param filePath - The absolute file path.
+ * @public
+ */
+export function buildGerritGitilesArchiveUrl(
+  config: GerritIntegrationConfig,
+  project: string,
+  branch: string,
+  filePath: string,
+): string {
+  const archiveName =
+    filePath === '/' || filePath === '' ? '.tar.gz' : `/${filePath}.tar.gz`;
+  return `${getGitilesAuthenticationUrl(
+    config,
+  )}/${project}/+archive/refs/heads/${branch}${archiveName}`;
+}
+
+/**
  * Return the authentication prefix.
  *
  * @remarks
@@ -95,6 +143,59 @@ export function getAuthenticationPrefix(
 }
 
 /**
+ * Return the authentication gitiles url.
+ *
+ * @remarks
+ *
+ * To authenticate with a password the API url must be prefixed with "/a/".
+ * If no password is set anonymous access (without the prefix) will
+ * be used.
+ *
+ * @param config - A Gerrit provider config.
+ */
+export function getGitilesAuthenticationUrl(
+  config: GerritIntegrationConfig,
+): string {
+  const parsedUrl = new URL(config.gitilesBaseUrl!);
+  return `${parsedUrl.protocol}//${parsedUrl.host}${getAuthenticationPrefix(
+    config,
+  )}${parsedUrl.pathname.substring(1)}`;
+}
+
+/**
+ * Return the url to get branch info from the Gerrit API.
+ *
+ * @param config - A Gerrit provider config.
+ * @param url - An url pointing to a file in git.
+ * @public
+ */
+export function getGerritBranchApiUrl(
+  config: GerritIntegrationConfig,
+  url: string,
+) {
+  const { branch, project } = parseGerritGitilesUrl(config, url);
+
+  return `${config.baseUrl}${getAuthenticationPrefix(
+    config,
+  )}projects/${encodeURIComponent(project)}/branches/${branch}`;
+}
+
+/**
+ * Return the url to clone the repo that is referenced by the url.
+ *
+ * @param url - An url pointing to a file in git.
+ * @public
+ */
+export function getGerritCloneRepoUrl(
+  config: GerritIntegrationConfig,
+  url: string,
+) {
+  const { project } = parseGerritGitilesUrl(config, url);
+
+  return `${config.cloneUrl}${getAuthenticationPrefix(config)}${project}`;
+}
+
+/**
  * Return the url to fetch the contents of a file using the Gerrit API.
  *
  * @param config - A Gerrit provider config.
@@ -105,7 +206,7 @@ export function getGerritFileContentsApiUrl(
   config: GerritIntegrationConfig,
   url: string,
 ) {
-  const { branch, filePath, project } = parseGitilesUrl(config, url);
+  const { branch, filePath, project } = parseGerritGitilesUrl(config, url);
 
   return `${config.baseUrl}${getAuthenticationPrefix(
     config,

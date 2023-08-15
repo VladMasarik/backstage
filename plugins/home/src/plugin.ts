@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import {
   createComponentExtension,
   createPlugin,
   createRoutableExtension,
 } from '@backstage/core-plugin-api';
-import { createCardExtension } from './extensions';
+import { createCardExtension } from '@backstage/plugin-home-react';
 import { ToolkitContentProps } from './homePageComponents';
-
 import { rootRouteRef } from './routes';
 
 /** @public */
@@ -108,6 +108,25 @@ export const HomePageRandomJoke = homePlugin.provide(
     name: 'HomePageRandomJoke',
     title: 'Random Joke',
     components: () => import('./homePageComponents/RandomJoke'),
+    description: 'Shows a random joke about optional category',
+    layout: {
+      height: { minRows: 4 },
+      width: { minColumns: 3 },
+    },
+    settings: {
+      schema: {
+        title: 'Random Joke settings',
+        type: 'object',
+        properties: {
+          defaultCategory: {
+            title: 'Category',
+            type: 'string',
+            enum: ['any', 'programming', 'dad'],
+            default: 'any',
+          },
+        },
+      },
+    },
   }),
 );
 
@@ -134,5 +153,22 @@ export const HomePageStarredEntities = homePlugin.provide(
     name: 'HomePageStarredEntities',
     title: 'Your Starred Entities',
     components: () => import('./homePageComponents/StarredEntities'),
+  }),
+);
+
+/**
+ * A component to display a configurable list of clocks for various time zones.
+ *
+ * @public
+ */
+export const HeaderWorldClock = homePlugin.provide(
+  createComponentExtension({
+    name: 'HeaderWorldClock',
+    component: {
+      lazy: () =>
+        import('./homePageComponents/HeaderWorldClock').then(
+          m => m.HeaderWorldClock,
+        ),
+    },
   }),
 );

@@ -1,5 +1,148 @@
 # @backstage/theme
 
+## 0.4.1
+
+### Patch Changes
+
+- 4f28914d9f0e: Overwrite `PaletteOptions` & `ThemeOptions` type to allow use of `createTheme` from `@backstage/theme` as well as `@material-ui/core/styles` with the same type. Also replaced the default `CSSBaseline` with v4 instead of v5 for better backwards compatibility for now.
+- 41c5aa0ab589: Applying the modified `theme.spacing` method only to overrides instead of replacing it in the whole theme.
+- 9395baa82413: You can now customize the typography of your theme by passing in your own custom typography defaults
+- 8174cf4c0edf: Fixing MUI / Material UI references
+- f0444f094396: Removed the hard coded color and background color in the `MuiChip` overrides so that they work better with custom themes
+- 874c3e8bf909: Override the spacing to a v5 compliant method
+
+## 0.4.1-next.1
+
+### Patch Changes
+
+- 8174cf4c0edf: Fixing MUI / Material UI references
+
+## 0.4.1-next.0
+
+### Patch Changes
+
+- 4f28914d9f0e: Overwrite `PaletteOptions` & `ThemeOptions` type to allow use of `createTheme` from `@backstage/theme` as well as `@material-ui/core/styles` with the same type. Also replaced the default `CSSBaseline` with v4 instead of v5 for better backwards compatibility for now.
+- 874c3e8bf909: Override the spacing to a v5 compliant method
+
+## 0.4.0
+
+### Minor Changes
+
+- 1fd38bc4141a: **Material UI v5 Support:** Adding platform-wide support for Material UI v5 allowing a transition phase for migrating central plugins & components over. We still support v4 instances & plugins by adding a
+
+  To allow the future support of plugins & components using Material UI v5 you want to upgrade your `AppTheme`'s to using the `UnifiedThemeProvider`
+
+  ```diff
+       Provider: ({ children }) => (
+  -    <ThemeProvider theme={lightTheme}>
+  -      <CssBaseline>{children}</CssBaseline>
+  -    </ThemeProvider>
+  +    <UnifiedThemeProvider theme={builtinThemes.light} children={children} />
+       ),
+  ```
+
+### Patch Changes
+
+- 5065a5e8ebd6: Tweaked `UnifiedThemeProvider` to avoid overlapping JSS class names in production.
+
+## 0.4.0-next.1
+
+### Patch Changes
+
+- 5065a5e8ebd6: Tweaked `UnifiedThemeProvider` to avoid overlapping JSS class names in production.
+
+## 0.4.0-next.0
+
+### Minor Changes
+
+- 1fd38bc4141a: **Material UI v5 Support:** Adding platform-wide support for Material UI v5 allowing a transition phase for migrating central plugins & components over. We still support v4 instances & plugins by adding a
+
+  To allow the future support of plugins & components using Material UI v5 you want to upgrade your `AppTheme`'s to using the `UnifiedThemeProvider`
+
+  ```diff
+       Provider: ({ children }) => (
+  -    <ThemeProvider theme={lightTheme}>
+  -      <CssBaseline>{children}</CssBaseline>
+  -    </ThemeProvider>
+  +    <UnifiedThemeProvider theme={builtinThemes.light} children={children} />
+       ),
+  ```
+
+## 0.3.0
+
+### Minor Changes
+
+- 98c0c199b15: Updates light theme's primary foreground and `running` status indicator colours to meet WCAG. Previously #2E77D0 changed to #1F5493.
+
+### Patch Changes
+
+- 83b45f9df50: Fix accessibility issue with Backstage Table's header style
+
+## 0.3.0-next.0
+
+### Minor Changes
+
+- 98c0c199b15: Updates light theme's primary foreground and `running` status indicator colours to meet WCAG. Previously #2E77D0 changed to #1F5493.
+
+### Patch Changes
+
+- 83b45f9df50: Fix accessibility issue with Backstage Table's header style
+
+## 0.2.19
+
+### Patch Changes
+
+- 303c2c3ce51: Allow `closeButton` color in `DismissableBanner` to be configurable (via. `theme.palette.banner.closeButtonColor`)
+- e0c6e8b9c3c: Update peer dependencies
+
+## 0.2.19-next.0
+
+### Patch Changes
+
+- e0c6e8b9c3c: Update peer dependencies
+
+## 0.2.18
+
+### Patch Changes
+
+- 482dae5de1c: Updated link to docs.
+
+## 0.2.18-next.0
+
+### Patch Changes
+
+- 482dae5de1c: Updated link to docs.
+
+## 0.2.17
+
+### Patch Changes
+
+- b7705e176c: Use same table header color as @backstage/core-components Table to meet accessibility color contrast requirements. This change affects material-ui tables.
+
+## 0.2.16
+
+### Patch Changes
+
+- ff4f56eb49: **DEPRECATED**: The `bursts` object from `BackstagePaletteAdditions` has been depreciated and will be removed in a future release
+
+  The `genPageTheme` function now includes an optional options object with an optional `fontColor` which defaults to white if not provided.
+
+- 4c09c09102: Adds optional `htmlFontSize` property and also sets typography design tokens for h5 and h6 in base theme.
+
+## 0.2.16-next.1
+
+### Patch Changes
+
+- ff4f56eb49: **DEPRECATED**: The `bursts` object from `BackstagePaletteAdditions` has been depreciated and will be removed in a future release
+
+  The `genPageTheme` function now includes an optional options object with an optional `fontColor` which defaults to white if not provided.
+
+## 0.2.16-next.0
+
+### Patch Changes
+
+- 4c09c09102: Adds optional `htmlFontSize` property and also sets typography design tokens for h5 and h6 in base theme.
+
 ## 0.2.15
 
 ### Patch Changes
@@ -82,7 +225,7 @@
 
 ### Patch Changes
 
-- 2089de76b: Deprecated `ItemCard`. Added `ItemCardGrid` and `ItemCardHeader` instead, that can be used to compose functionality around regular Material-UI `Card` components instead.
+- 2089de76b: Deprecated `ItemCard`. Added `ItemCardGrid` and `ItemCardHeader` instead, that can be used to compose functionality around regular Material UI `Card` components instead.
 
 ## 0.2.3
 

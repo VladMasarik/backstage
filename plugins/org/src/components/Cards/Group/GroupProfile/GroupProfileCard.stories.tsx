@@ -23,7 +23,7 @@ import {
 } from '@backstage/plugin-catalog-react';
 import { TestApiProvider, wrapInTestApp } from '@backstage/test-utils';
 import { Grid } from '@material-ui/core';
-import React, { ComponentType } from 'react';
+import React, { ComponentType, PropsWithChildren } from 'react';
 import { GroupProfileCard } from './GroupProfileCard';
 
 const dummyDepartment = {
@@ -74,7 +74,7 @@ export default {
   title: 'Plugins/Org/Group Profile Card',
   component: GroupProfileCard,
   decorators: [
-    (Story: ComponentType<{}>) =>
+    (Story: ComponentType<PropsWithChildren<{}>>) =>
       wrapInTestApp(
         <TestApiProvider apis={[[catalogApiRef, catalogApi]]}>
           <Story />
@@ -87,3 +87,74 @@ export default {
       ),
   ],
 };
+
+const extraDetailsEntity: GroupEntity = {
+  apiVersion: 'backstage.io/v1alpha1',
+  kind: 'Group',
+  metadata: {
+    name: 'team-a',
+    description: 'Team A',
+    links: [
+      {
+        url: 'slack://user?team=T00000000&id=U00000000',
+        title: 'Slack',
+        icon: 'chat',
+      },
+      {
+        url: 'https://www.google.com',
+        title: 'Google',
+      },
+    ],
+  },
+  spec: {
+    profile: {
+      displayName: 'Team A',
+      email: 'team-a@example.com',
+      picture:
+        'https://avatars.dicebear.com/api/identicon/team-a@example.com.svg?background=%23fff&margin=25',
+    },
+    type: 'group',
+    children: [],
+  },
+  relations: [dummyDepartment],
+};
+
+export const ExtraDetails = () => (
+  <EntityProvider entity={extraDetailsEntity}>
+    <Grid container spacing={4}>
+      <Grid item xs={12} md={4}>
+        <GroupProfileCard variant="gridItem" showLinks />
+      </Grid>
+    </Grid>
+  </EntityProvider>
+);
+
+const groupWithTitle: GroupEntity = {
+  apiVersion: 'backstage.io/v1alpha1',
+  kind: 'Group',
+  metadata: {
+    name: 'team-a',
+    description: 'Team A description',
+    title: 'Team A title',
+  },
+  spec: {
+    profile: {
+      email: 'team-a@example.com',
+      picture:
+        'https://avatars.dicebear.com/api/identicon/team-a@example.com.svg?background=%23fff&margin=25',
+    },
+    type: 'group',
+    children: [],
+  },
+  relations: [dummyDepartment],
+};
+
+export const UseGroupTitle = () => (
+  <EntityProvider entity={groupWithTitle}>
+    <Grid container spacing={4}>
+      <Grid item xs={12} md={4}>
+        <GroupProfileCard variant="gridItem" showLinks />
+      </Grid>
+    </Grid>
+  </EntityProvider>
+);

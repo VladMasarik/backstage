@@ -20,22 +20,18 @@ import {
   UserEntity,
   stringifyEntityRef,
 } from '@backstage/catalog-model';
-import {
-  catalogApiRef,
-  entityRouteParams,
-  useEntity,
-} from '@backstage/plugin-catalog-react';
+import { catalogApiRef, useEntity } from '@backstage/plugin-catalog-react';
 import {
   Box,
   createStyles,
   Grid,
   makeStyles,
+  Switch,
   Theme,
   Typography,
 } from '@material-ui/core';
 import Pagination from '@material-ui/lab/Pagination';
-import React from 'react';
-import { generatePath } from 'react-router-dom';
+import React, { useState } from 'react';
 import useAsync from 'react-use/lib/useAsync';
 
 import {
@@ -44,8 +40,14 @@ import {
   Progress,
   ResponseErrorPanel,
   Link,
+  OverflowTooltip,
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
+import {
+  getAllDesendantMembersForGroupEntity,
+  removeDuplicateEntitiesFrom,
+} from '../../../../helpers/helpers';
+import { EntityRefLink } from '@backstage/plugin-catalog-react';
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
@@ -88,19 +90,24 @@ const MemberComponent = (props: { member: UserEntity }) => {
               top: '-2rem',
             }}
           />
-          <Box pt={2} textAlign="center">
-            <Typography variant="h5">
-              <Link
-                to={generatePath(
-                  `/catalog/:namespace/user/${metaName}`,
-                  entityRouteParams(props.member),
-                )}
-              >
-                {displayName}
-              </Link>
+          <Box
+            pt={2}
+            sx={{
+              width: '100%',
+            }}
+            textAlign="center"
+          >
+            <Typography variant="h6">
+              <EntityRefLink
+                data-testid="user-link"
+                entityRef={props.member}
+                title={displayName}
+              />
             </Typography>
             {profile?.email && (
-              <Link to={`mailto:${profile.email}`}>{profile.email}</Link>
+              <Link to={`mailto:${profile.email}`}>
+                <OverflowTooltip text={profile.email} />
+              </Link>
             )}
             {description && (
               <Typography variant="subtitle2">{description}</Typography>
@@ -116,8 +123,13 @@ const MemberComponent = (props: { member: UserEntity }) => {
 export const MembersListCard = (props: {
   memberDisplayTitle?: string;
   pageSize?: number;
+  showAggregateMembersToggle?: boolean;
 }) => {
-  const { memberDisplayTitle = 'Members', pageSize = 50 } = props;
+  const {
+    memberDisplayTitle = 'Members',
+    pageSize = 50,
+    showAggregateMembersToggle,
+  } = props;
 
   const { entity: groupEntity } = useEntity<GroupEntity>();
   const {
@@ -135,10 +147,23 @@ export const MembersListCard = (props: {
     setPage(pageIndex);
   };
 
+  const [showAggregateMembers, setShowAggregateMembers] = useState(false);
+
+  const { loading: loadingDescendantMembers, value: descendantMembers } =
+    useAsync(async () => {
+      if (!showAggregateMembersToggle) {
+        return [] as UserEntity[];
+      }
+
+      return await getAllDesendantMembersForGroupEntity(
+        groupEntity,
+        catalogApi,
+      );
+    }, [catalogApi, groupEntity, showAggregateMembersToggle]);
   const {
     loading,
     error,
-    value: members,
+    value: directMembers,
   } = useAsync(async () => {
     const membersList = await catalogApi.getEntities({
       filter: {
@@ -155,6 +180,15 @@ export const MembersListCard = (props: {
 
     return membersList.items as UserEntity[];
   }, [catalogApi, groupEntity]);
+
+  const members = removeDuplicateEntitiesFrom(
+    [
+      ...(directMembers ?? []),
+      ...(descendantMembers && showAggregateMembers ? descendantMembers : []),
+    ].sort((a, b) =>
+      stringifyEntityRef(a).localeCompare(stringifyEntityRef(b)),
+    ),
+  ) as UserEntity[];
 
   if (loading) {
     return <Progress />;
@@ -184,21 +218,39 @@ export const MembersListCard = (props: {
         subheader={`of ${displayName}`}
         {...(nbPages <= 1 ? {} : { actions: pagination })}
       >
-        <Grid container spacing={3}>
-          {members && members.length > 0 ? (
-            members
-              .slice(pageSize * (page - 1), pageSize * page)
-              .map(member => (
-                <MemberComponent member={member} key={member.metadata.uid} />
-              ))
-          ) : (
-            <Box p={2}>
-              <Typography>
-                This group has no {memberDisplayTitle.toLocaleLowerCase()}.
-              </Typography>
-            </Box>
-          )}
-        </Grid>
+        {showAggregateMembersToggle && (
+          <>
+            Direct Members
+            <Switch
+              color="primary"
+              checked={showAggregateMembers}
+              onChange={() => {
+                setShowAggregateMembers(!showAggregateMembers);
+              }}
+              inputProps={{ 'aria-label': 'Users Type Switch' }}
+            />
+            Aggregated Members
+          </>
+        )}
+        {showAggregateMembers && loadingDescendantMembers ? (
+          <Progress />
+        ) : (
+          <Grid container spacing={3}>
+            {members && members.length > 0 ? (
+              members
+                .slice(pageSize * (page - 1), pageSize * page)
+                .map(member => (
+                  <MemberComponent member={member} key={member.metadata.uid} />
+                ))
+            ) : (
+              <Box p={2}>
+                <Typography>
+                  This group has no {memberDisplayTitle.toLocaleLowerCase()}.
+                </Typography>
+              </Box>
+            )}
+          </Grid>
+        )}
       </InfoCard>
     </Grid>
   );

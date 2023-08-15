@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { GitLabIntegrationConfig } from './config';
+import {
+  getGitLabIntegrationRelativePath,
+  GitLabIntegrationConfig,
+} from './config';
 import fetch from 'cross-fetch';
 
 /**
@@ -25,7 +28,7 @@ import fetch from 'cross-fetch';
  *
  * Converts
  * from: https://gitlab.example.com/a/b/blob/master/c.yaml
- * to:   https://gitlab.example.com/a/b/raw/master/c.yaml
+ * to:   https://gitlab.com/api/v4/projects/projectId/repository/c.yaml?ref=master
  * -or-
  * from: https://gitlab.com/groupA/teams/teamA/subgroupA/repoA/-/blob/branch/filepath
  * to:   https://gitlab.com/api/v4/projects/projectId/repository/files/filepath?ref=branch
@@ -38,14 +41,8 @@ export async function getGitLabFileFetchUrl(
   url: string,
   config: GitLabIntegrationConfig,
 ): Promise<string> {
-  // TODO(Rugvip): From the old GitlabReaderProcessor; used
-  // the existence of /-/blob/ to switch the logic. Don't know if this
-  // makes sense and it might require some more work.
-  if (url.includes('/-/blob/')) {
-    const projectID = await getProjectId(url, config);
-    return buildProjectUrl(url, projectID).toString();
-  }
-  return buildRawUrl(url).toString();
+  const projectID = await getProjectId(url, config);
+  return buildProjectUrl(url, projectID, config).toString();
 }
 
 /**
@@ -66,51 +63,32 @@ export function getGitLabRequestOptions(config: GitLabIntegrationConfig): {
 }
 
 // Converts
-// from: https://gitlab.example.com/a/b/blob/master/c.yaml
-// to:   https://gitlab.example.com/a/b/raw/master/c.yaml
-export function buildRawUrl(target: string): URL {
-  try {
-    const url = new URL(target);
-
-    const [empty, userOrOrg, repoName, blobKeyword, ...restOfPath] =
-      url.pathname.split('/');
-
-    if (
-      empty !== '' ||
-      userOrOrg === '' ||
-      repoName === '' ||
-      blobKeyword !== 'blob' ||
-      !restOfPath.join('/').match(/\.(yaml|yml)$/)
-    ) {
-      throw new Error('Wrong GitLab URL');
-    }
-
-    // Replace 'blob' with 'raw'
-    url.pathname = [empty, userOrOrg, repoName, 'raw', ...restOfPath].join('/');
-
-    return url;
-  } catch (e) {
-    throw new Error(`Incorrect url: ${target}, ${e}`);
-  }
-}
-
-// Converts
 // from: https://gitlab.com/groupA/teams/teamA/subgroupA/repoA/-/blob/branch/filepath
 // to:   https://gitlab.com/api/v4/projects/projectId/repository/files/filepath?ref=branch
-export function buildProjectUrl(target: string, projectID: Number): URL {
+export function buildProjectUrl(
+  target: string,
+  projectID: Number,
+  config: GitLabIntegrationConfig,
+): URL {
   try {
     const url = new URL(target);
 
-    const branchAndFilePath = url.pathname.split('/-/blob/')[1];
+    const branchAndFilePath = url.pathname
+      .split('/blob/')
+      .slice(1)
+      .join('/blob/');
     const [branch, ...filePath] = branchAndFilePath.split('/');
+    const relativePath = getGitLabIntegrationRelativePath(config);
 
     url.pathname = [
-      '/api/v4/projects',
+      ...(relativePath ? [relativePath] : []),
+      'api/v4/projects',
       projectID,
       'repository/files',
       encodeURIComponent(decodeURIComponent(filePath.join('/'))),
       'raw',
     ].join('/');
+
     url.search = `?ref=${branch}`;
 
     return url;
@@ -128,24 +106,34 @@ export async function getProjectId(
 ): Promise<number> {
   const url = new URL(target);
 
-  if (!url.pathname.includes('/-/blob/')) {
+  if (!url.pathname.includes('/blob/')) {
     throw new Error('Please provide full path to yaml file from GitLab');
   }
 
   try {
-    const repo = url.pathname.split('/-/blob/')[0];
+    let repo = url.pathname.split('/-/blob/')[0].split('/blob/')[0];
+
+    // Get gitlab relative path
+    const relativePath = getGitLabIntegrationRelativePath(config);
+
+    // Check relative path exist and replace it if it's the case.
+    if (relativePath) {
+      repo = repo.replace(relativePath, '');
+    }
 
     // Convert
     // to: https://gitlab.com/api/v4/projects/groupA%2Fteams%2FsubgroupA%2FteamA%2Frepo
     const repoIDLookup = new URL(
-      `${url.origin}/api/v4/projects/${encodeURIComponent(
+      `${url.origin}${relativePath}/api/v4/projects/${encodeURIComponent(
         repo.replace(/^\//, ''),
       )}`,
     );
+
     const response = await fetch(
       repoIDLookup.toString(),
       getGitLabRequestOptions(config),
     );
+
     const data = await response.json();
 
     if (!response.ok) {

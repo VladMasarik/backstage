@@ -6,45 +6,71 @@
 /// <reference types="node" />
 /// <reference types="webpack-env" />
 
-import { AbortController as AbortController_2 } from 'node-abort-controller';
-import { AbortSignal as AbortSignal_2 } from 'node-abort-controller';
+import { AppConfig } from '@backstage/config';
+import { AwsCredentialsManager } from '@backstage/integration-aws-node';
 import { AwsS3Integration } from '@backstage/integration';
 import { AzureIntegration } from '@backstage/integration';
+import { BackendFeature } from '@backstage/backend-plugin-api';
 import { BitbucketCloudIntegration } from '@backstage/integration';
 import { BitbucketIntegration } from '@backstage/integration';
 import { BitbucketServerIntegration } from '@backstage/integration';
+import { CacheService as CacheClient } from '@backstage/backend-plugin-api';
+import { CacheServiceOptions as CacheClientOptions } from '@backstage/backend-plugin-api';
+import { CacheServiceSetOptions as CacheClientSetOptions } from '@backstage/backend-plugin-api';
 import { Config } from '@backstage/config';
 import cors from 'cors';
 import Docker from 'dockerode';
-import { Duration } from 'luxon';
 import { ErrorRequestHandler } from 'express';
 import express from 'express';
 import { GerritIntegration } from '@backstage/integration';
+import { GiteaIntegration } from '@backstage/integration';
 import { GithubCredentialsProvider } from '@backstage/integration';
-import { GitHubIntegration } from '@backstage/integration';
+import { GithubIntegration } from '@backstage/integration';
 import { GitLabIntegration } from '@backstage/integration';
+import { IdentityService } from '@backstage/backend-plugin-api';
 import { isChildPath } from '@backstage/cli-common';
-import { JsonValue } from '@backstage/types';
 import { Knex } from 'knex';
+import { KubeConfig } from '@kubernetes/client-node';
+import { LifecycleService } from '@backstage/backend-plugin-api';
 import { LoadConfigOptionsRemote } from '@backstage/config-loader';
 import { Logger } from 'winston';
+import { LoggerService } from '@backstage/backend-plugin-api';
 import { MergeResult } from 'isomorphic-git';
+import { PermissionsService } from '@backstage/backend-plugin-api';
+import { DatabaseService as PluginDatabaseManager } from '@backstage/backend-plugin-api';
+import { DiscoveryService as PluginEndpointDiscovery } from '@backstage/backend-plugin-api';
+import { PluginMetadataService } from '@backstage/backend-plugin-api';
 import { PushResult } from 'isomorphic-git';
 import { Readable } from 'stream';
 import { ReadCommitResult } from 'isomorphic-git';
+import { ReadTreeOptions } from '@backstage/backend-plugin-api';
+import { ReadTreeResponse } from '@backstage/backend-plugin-api';
+import { ReadTreeResponseDirOptions } from '@backstage/backend-plugin-api';
+import { ReadTreeResponseFile } from '@backstage/backend-plugin-api';
+import { ReadUrlOptions } from '@backstage/backend-plugin-api';
+import { ReadUrlResponse } from '@backstage/backend-plugin-api';
 import { RequestHandler } from 'express';
+import { RootConfigService } from '@backstage/backend-plugin-api';
 import { Router } from 'express';
-import { S3 } from 'aws-sdk';
+import { SchedulerService } from '@backstage/backend-plugin-api';
+import { SearchOptions } from '@backstage/backend-plugin-api';
+import { SearchResponse } from '@backstage/backend-plugin-api';
+import { SearchResponseFile } from '@backstage/backend-plugin-api';
 import { Server } from 'http';
+import { ServiceRef } from '@backstage/backend-plugin-api';
+import { TokenManagerService as TokenManager } from '@backstage/backend-plugin-api';
+import { TransportStreamOptions } from 'winston-transport';
+import { UrlReaderService as UrlReader } from '@backstage/backend-plugin-api';
+import { V1PodTemplateSpec } from '@kubernetes/client-node';
 import * as winston from 'winston';
 import { Writable } from 'stream';
 
 // @public
 export class AwsS3UrlReader implements UrlReader {
   constructor(
+    credsManager: AwsCredentialsManager,
     integration: AwsS3Integration,
     deps: {
-      s3: S3;
       treeResponseFactory: ReadTreeResponseFactory;
     },
   );
@@ -132,7 +158,7 @@ export class BitbucketServerUrlReader implements UrlReader {
 export class BitbucketUrlReader implements UrlReader {
   constructor(
     integration: BitbucketIntegration,
-    logger: Logger,
+    logger: LoggerService,
     deps: {
       treeResponseFactory: ReadTreeResponseFactory;
     },
@@ -151,26 +177,11 @@ export class BitbucketUrlReader implements UrlReader {
   toString(): string;
 }
 
-// @public
-export interface CacheClient {
-  delete(key: string): Promise<void>;
-  get(key: string): Promise<JsonValue | undefined>;
-  set(
-    key: string,
-    value: JsonValue,
-    options?: CacheClientSetOptions,
-  ): Promise<void>;
-}
+export { CacheClient };
 
-// @public
-export type CacheClientOptions = {
-  defaultTtl?: number;
-};
+export { CacheClientOptions };
 
-// @public
-export type CacheClientSetOptions = {
-  ttl?: number;
-};
+export { CacheClientSetOptions };
 
 // @public
 export class CacheManager {
@@ -183,9 +194,14 @@ export class CacheManager {
 
 // @public
 export type CacheManagerOptions = {
-  logger?: Logger;
+  logger?: LoggerService;
   onError?: (err: Error) => void;
 };
+
+// @public (undocumented)
+export function cacheToPluginCacheManager(
+  cache: CacheClient,
+): PluginCacheManager;
 
 // @public
 export const coloredFormat: winston.Logform.Format;
@@ -195,33 +211,14 @@ export interface ContainerRunner {
   runContainer(opts: RunContainerOptions): Promise<void>;
 }
 
-// @alpha
-export interface Context {
-  readonly abortSignal: AbortSignal_2;
-  readonly deadline: Date | undefined;
-  value<T = unknown>(key: string): T | undefined;
-}
-
-// @alpha
-export class Contexts {
-  static root(): Context;
-  static withAbort(
-    parentCtx: Context,
-    source: AbortController_2 | AbortSignal_2,
-  ): Context;
-  static withTimeoutDuration(parentCtx: Context, timeout: Duration): Context;
-  static withTimeoutMillis(parentCtx: Context, timeout: number): Context;
-  static withValue(
-    parentCtx: Context,
-    key: string,
-    value: unknown | ((previous: unknown | undefined) => unknown),
-  ): Context;
-}
-
 // @public
 export function createDatabaseClient(
   dbConfig: Config,
   overrides?: Partial<Knex.Config>,
+  deps?: {
+    lifecycle: LifecycleService;
+    pluginMetadata: PluginMetadataService;
+  },
 ): Knex<any, any[]>;
 
 // @public
@@ -235,14 +232,20 @@ export function createServiceBuilder(_module: NodeModule): ServiceBuilder;
 
 // @public
 export function createStatusCheckRouter(options: {
-  logger: Logger;
+  logger: LoggerService;
   path?: string;
   statusCheck?: StatusCheck;
 }): Promise<express.Router>;
 
 // @public
 export class DatabaseManager {
-  forPlugin(pluginId: string): PluginDatabaseManager;
+  forPlugin(
+    pluginId: string,
+    deps?: {
+      lifecycle: LifecycleService;
+      pluginMetadata: PluginMetadataService;
+    },
+  ): PluginDatabaseManager;
   static fromConfig(
     config: Config,
     options?: DatabaseManagerOptions,
@@ -252,6 +255,7 @@ export class DatabaseManager {
 // @public
 export type DatabaseManagerOptions = {
   migrations?: PluginDatabaseManager['migrations'];
+  logger?: LoggerService;
 };
 
 // @public
@@ -275,7 +279,7 @@ export function errorHandler(
 // @public
 export type ErrorHandlerOptions = {
   showStackTraces?: boolean;
-  logger?: Logger;
+  logger?: LoggerService;
   logClientErrors?: boolean;
 };
 
@@ -298,17 +302,24 @@ export class FetchUrlReader implements UrlReader {
 export type FromReadableArrayOptions = Array<{
   data: Readable;
   path: string;
+  lastModifiedAt?: Date;
 }>;
 
 // @public
 export class GerritUrlReader implements UrlReader {
-  constructor(integration: GerritIntegration);
+  constructor(
+    integration: GerritIntegration,
+    deps: {
+      treeResponseFactory: ReadTreeResponseFactory;
+    },
+    workDir: string,
+  );
   // (undocumented)
   static factory: ReaderFactory;
   // (undocumented)
   read(url: string): Promise<Buffer>;
   // (undocumented)
-  readTree(): Promise<ReadTreeResponse>;
+  readTree(url: string, options?: ReadTreeOptions): Promise<ReadTreeResponse>;
   // (undocumented)
   readUrl(url: string, options?: ReadUrlOptions): Promise<ReadUrlResponse>;
   // (undocumented)
@@ -332,7 +343,12 @@ export class Git {
     dir: string;
     remote: string;
     url: string;
+    force?: boolean;
   }): Promise<void>;
+  // (undocumented)
+  branch(options: { dir: string; ref: string }): Promise<void>;
+  // (undocumented)
+  checkout(options: { dir: string; ref: string }): Promise<void>;
   clone(options: {
     url: string;
     dir: string;
@@ -357,12 +373,15 @@ export class Git {
     dir: string;
     fullName?: boolean;
   }): Promise<string | undefined>;
+  // (undocumented)
+  deleteRemote(options: { dir: string; remote: string }): Promise<void>;
   fetch(options: { dir: string; remote?: string }): Promise<void>;
   // (undocumented)
   static fromAuth: (options: {
     username?: string;
     password?: string;
-    logger?: Logger;
+    token?: string;
+    logger?: LoggerService;
   }) => Git;
   // (undocumented)
   init(options: { dir: string; defaultBranch?: string }): Promise<void>;
@@ -381,15 +400,37 @@ export class Git {
     };
   }): Promise<MergeResult>;
   // (undocumented)
-  push(options: { dir: string; remote: string }): Promise<PushResult>;
+  push(options: {
+    dir: string;
+    remote: string;
+    remoteRef?: string;
+    force?: boolean;
+  }): Promise<PushResult>;
   readCommit(options: { dir: string; sha: string }): Promise<ReadCommitResult>;
   resolveRef(options: { dir: string; ref: string }): Promise<string>;
 }
 
 // @public
+export class GiteaUrlReader implements UrlReader {
+  constructor(integration: GiteaIntegration);
+  // (undocumented)
+  static factory: ReaderFactory;
+  // (undocumented)
+  read(url: string): Promise<Buffer>;
+  // (undocumented)
+  readTree(): Promise<ReadTreeResponse>;
+  // (undocumented)
+  readUrl(url: string, options?: ReadUrlOptions): Promise<ReadUrlResponse>;
+  // (undocumented)
+  search(): Promise<SearchResponse>;
+  // (undocumented)
+  toString(): string;
+}
+
+// @public
 export class GithubUrlReader implements UrlReader {
   constructor(
-    integration: GitHubIntegration,
+    integration: GithubIntegration,
     deps: {
       treeResponseFactory: ReadTreeResponseFactory;
       credentialsProvider: GithubCredentialsProvider;
@@ -431,71 +472,135 @@ export class GitlabUrlReader implements UrlReader {
   toString(): string;
 }
 
+// @public
+export class HostDiscovery implements PluginEndpointDiscovery {
+  static fromConfig(
+    config: Config,
+    options?: {
+      basePath?: string;
+    },
+  ): HostDiscovery;
+  // (undocumented)
+  getBaseUrl(pluginId: string): Promise<string>;
+  // (undocumented)
+  getExternalBaseUrl(pluginId: string): Promise<string>;
+}
+
 export { isChildPath };
 
 // @public
 export function isDatabaseConflictError(e: unknown): boolean;
 
 // @public
+export class KubernetesContainerRunner implements ContainerRunner {
+  constructor(options: KubernetesContainerRunnerOptions);
+  // (undocumented)
+  runContainer(options: RunContainerOptions): Promise<void>;
+}
+
+// @public
+export type KubernetesContainerRunnerMountBase = {
+  volumeName: string;
+  basePath: string;
+};
+
+// @public
+export type KubernetesContainerRunnerOptions = {
+  kubeConfig: KubeConfig;
+  name: string;
+  namespace?: string;
+  mountBase?: KubernetesContainerRunnerMountBase;
+  podTemplate?: V1PodTemplateSpec;
+  timeoutMs?: number;
+};
+
+// @public (undocumented)
+export type LegacyCreateRouter<TEnv> = (deps: TEnv) => Promise<RequestHandler>;
+
+// @public
+export const legacyPlugin: (
+  name: string,
+  createRouterImport: Promise<{
+    default: LegacyCreateRouter<
+      TransformedEnv<
+        {
+          cache: CacheClient;
+          config: RootConfigService;
+          database: PluginDatabaseManager;
+          discovery: PluginEndpointDiscovery;
+          logger: LoggerService;
+          permissions: PermissionsService;
+          scheduler: SchedulerService;
+          tokenManager: TokenManager;
+          reader: UrlReader;
+          identity: IdentityService;
+        },
+        {
+          logger: (log: LoggerService) => Logger;
+          cache: (cache: CacheClient) => PluginCacheManager;
+        }
+      >
+    >;
+  }>,
+) => BackendFeature;
+
+// @public
 export function loadBackendConfig(options: {
-  logger: Logger;
+  logger: LoggerService;
   remote?: LoadConfigOptionsRemote;
+  additionalConfigs?: AppConfig[];
   argv: string[];
 }): Promise<Config>;
+
+// @public (undocumented)
+export function loggerToWinstonLogger(
+  logger: LoggerService,
+  opts?: TransportStreamOptions,
+): Logger;
+
+// @public
+export function makeLegacyPlugin<
+  TEnv extends Record<string, unknown>,
+  TEnvTransforms extends {
+    [key in keyof TEnv]?: (dep: TEnv[key]) => unknown;
+  },
+>(
+  envMapping: {
+    [key in keyof TEnv]: ServiceRef<TEnv[key]>;
+  },
+  envTransforms: TEnvTransforms,
+): (
+  name: string,
+  createRouterImport: Promise<{
+    default: LegacyCreateRouter<TransformedEnv<TEnv, TEnvTransforms>>;
+  }>,
+) => BackendFeature;
 
 // @public
 export function notFoundHandler(): RequestHandler;
 
-// @public
-export type PluginCacheManager = {
-  getClient: (options?: CacheClientOptions) => CacheClient;
-};
-
-// @public
-export interface PluginDatabaseManager {
-  getClient(): Promise<Knex>;
-  migrations?: {
-    skip?: boolean;
-  };
+// @public (undocumented)
+export interface PluginCacheManager {
+  // (undocumented)
+  getClient(options?: CacheClientOptions): CacheClient;
 }
 
-// @public
-export type PluginEndpointDiscovery = {
-  getBaseUrl(pluginId: string): Promise<string>;
-  getExternalBaseUrl(pluginId: string): Promise<string>;
-};
+export { PluginDatabaseManager };
+
+export { PluginEndpointDiscovery };
 
 // @public
 export type ReaderFactory = (options: {
   config: Config;
-  logger: Logger;
+  logger: LoggerService;
   treeResponseFactory: ReadTreeResponseFactory;
 }) => UrlReaderPredicateTuple[];
 
-// @public
-export type ReadTreeOptions = {
-  filter?(
-    path: string,
-    info?: {
-      size: number;
-    },
-  ): boolean;
-  etag?: string;
-  signal?: AbortSignal_2;
-};
+export { ReadTreeOptions };
 
-// @public
-export type ReadTreeResponse = {
-  files(): Promise<ReadTreeResponseFile[]>;
-  archive(): Promise<NodeJS.ReadableStream>;
-  dir(options?: ReadTreeResponseDirOptions): Promise<string>;
-  etag: string;
-};
+export { ReadTreeResponse };
 
-// @public
-export type ReadTreeResponseDirOptions = {
-  targetDir?: string;
-};
+export { ReadTreeResponseDirOptions };
 
 // @public
 export interface ReadTreeResponseFactory {
@@ -505,7 +610,9 @@ export interface ReadTreeResponseFactory {
   ): Promise<ReadTreeResponse>;
   // (undocumented)
   fromTarArchive(
-    options: ReadTreeResponseFactoryOptions,
+    options: ReadTreeResponseFactoryOptions & {
+      stripFirstDirectory?: boolean;
+    },
   ): Promise<ReadTreeResponse>;
   // (undocumented)
   fromZipArchive(
@@ -526,29 +633,42 @@ export type ReadTreeResponseFactoryOptions = {
   ) => boolean;
 };
 
-// @public
-export type ReadTreeResponseFile = {
-  path: string;
-  content(): Promise<Buffer>;
-};
+export { ReadTreeResponseFile };
+
+export { ReadUrlOptions };
+
+export { ReadUrlResponse };
 
 // @public
-export type ReadUrlOptions = {
+export class ReadUrlResponseFactory {
+  static fromNodeJSReadable(
+    oldStyleStream: NodeJS.ReadableStream,
+    options?: ReadUrlResponseFactoryFromStreamOptions,
+  ): Promise<ReadUrlResponse>;
+  static fromReadable(
+    stream: Readable,
+    options?: ReadUrlResponseFactoryFromStreamOptions,
+  ): Promise<ReadUrlResponse>;
+}
+
+// @public
+export type ReadUrlResponseFactoryFromStreamOptions = {
   etag?: string;
-  signal?: AbortSignal_2;
+  lastModifiedAt?: Date;
 };
 
 // @public
-export type ReadUrlResponse = {
-  buffer(): Promise<Buffer>;
-  etag?: string;
-};
+export function redactWinstonLogLine(
+  info: winston.Logform.TransformableInfo,
+): winston.Logform.TransformableInfo;
 
 // @public
-export function requestLoggingHandler(logger?: Logger): RequestHandler;
+export function requestLoggingHandler(logger?: LoggerService): RequestHandler;
 
 // @public
-export type RequestLoggingHandlerFactory = (logger?: Logger) => RequestHandler;
+export type RequestLoggingHandlerFactory = (
+  logger?: LoggerService,
+) => RequestHandler;
 
 // @public
 export function resolvePackagePath(name: string, ...paths: string[]): string;
@@ -568,23 +688,11 @@ export type RunContainerOptions = {
   pullImage?: boolean;
 };
 
-// @public
-export type SearchOptions = {
-  etag?: string;
-  signal?: AbortSignal_2;
-};
+export { SearchOptions };
 
-// @public
-export type SearchResponse = {
-  files: SearchResponseFile[];
-  etag: string;
-};
+export { SearchResponse };
 
-// @public
-export type SearchResponseFile = {
-  url: string;
-  content(): Promise<Buffer>;
-};
+export { SearchResponseFile };
 
 // @public
 export class ServerTokenManager implements TokenManager {
@@ -593,16 +701,18 @@ export class ServerTokenManager implements TokenManager {
   // (undocumented)
   static fromConfig(
     config: Config,
-    options: {
-      logger: Logger;
-    },
+    options: ServerTokenManagerOptions,
   ): ServerTokenManager;
   // (undocumented)
   getToken(): Promise<{
     token: string;
   }>;
-  // (undocumented)
   static noop(): TokenManager;
+}
+
+// @public
+export interface ServerTokenManagerOptions {
+  logger: LoggerService;
 }
 
 // @public
@@ -610,7 +720,7 @@ export type ServiceBuilder = {
   loadConfig(config: Config): ServiceBuilder;
   setPort(port: number): ServiceBuilder;
   setHost(host: string): ServiceBuilder;
-  setLogger(logger: Logger): ServiceBuilder;
+  setLogger(logger: LoggerService): ServiceBuilder;
   enableCors(options: cors.CorsOptions): ServiceBuilder;
   setHttpsSettings(settings: {
     certificate:
@@ -634,19 +744,8 @@ export type ServiceBuilder = {
 // @public
 export function setRootLogger(newLogger: winston.Logger): void;
 
-// @public
-export class SingleHostDiscovery implements PluginEndpointDiscovery {
-  static fromConfig(
-    config: Config,
-    options?: {
-      basePath?: string;
-    },
-  ): SingleHostDiscovery;
-  // (undocumented)
-  getBaseUrl(pluginId: string): Promise<string>;
-  // (undocumented)
-  getExternalBaseUrl(pluginId: string): Promise<string>;
-}
+// @public @deprecated
+export const SingleHostDiscovery: typeof HostDiscovery;
 
 // @public
 export type StatusCheck = () => Promise<any>;
@@ -661,23 +760,9 @@ export interface StatusCheckHandlerOptions {
   statusCheck?: StatusCheck;
 }
 
-// @public
-export interface TokenManager {
-  // (undocumented)
-  authenticate: (token: string) => Promise<void>;
-  // (undocumented)
-  getToken: () => Promise<{
-    token: string;
-  }>;
-}
+export { TokenManager };
 
-// @public
-export type UrlReader = {
-  read(url: string): Promise<Buffer>;
-  readUrl?(url: string, options?: ReadUrlOptions): Promise<ReadUrlResponse>;
-  readTree(url: string, options?: ReadTreeOptions): Promise<ReadTreeResponse>;
-  search(url: string, options?: SearchOptions): Promise<SearchResponse>;
-};
+export { UrlReader };
 
 // @public
 export type UrlReaderPredicateTuple = {
@@ -694,7 +779,7 @@ export class UrlReaders {
 // @public
 export type UrlReadersOptions = {
   config: Config;
-  logger: Logger;
+  logger: LoggerService;
   factories?: ReaderFactory[];
 };
 

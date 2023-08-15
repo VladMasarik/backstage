@@ -19,47 +19,19 @@
  *
  * @packageDocumentation
  */
+export { ScaffolderClient } from './api';
 
-export { scaffolderApiRef, ScaffolderClient } from './api';
-export type {
-  ListActionsResponse,
-  LogEvent,
-  ScaffolderApi,
-  ScaffolderGetIntegrationsListOptions,
-  ScaffolderGetIntegrationsListResponse,
-  ScaffolderOutputLink,
-  ScaffolderScaffoldOptions,
-  ScaffolderScaffoldResponse,
-  ScaffolderStreamLogsOptions,
-  ScaffolderTask,
-  ScaffolderTaskOutput,
-  ScaffolderTaskStatus,
-  TemplateParameterSchema,
-} from './types';
-export {
-  createScaffolderFieldExtension,
-  ScaffolderFieldExtensions,
-} from './extensions';
-export type {
-  CustomFieldValidator,
-  FieldExtensionOptions,
-  FieldExtensionComponentProps,
-  FieldExtensionComponent,
-} from './extensions';
 export {
   EntityPickerFieldExtension,
   EntityNamePickerFieldExtension,
   EntityTagsPickerFieldExtension,
   OwnerPickerFieldExtension,
   OwnedEntityPickerFieldExtension,
+  MyGroupsPickerFieldExtension,
   RepoUrlPickerFieldExtension,
   ScaffolderPage,
   scaffolderPlugin,
-  NextScaffolderPage,
 } from './plugin';
-export * from './components';
-export type { TaskPageProps } from './components/TaskPage';
 
-/** next exports */
-export type { NextRouterProps } from './next';
-export type { TemplateGroupFilter } from './next';
+export * from './components';
+export * from './deprecated';

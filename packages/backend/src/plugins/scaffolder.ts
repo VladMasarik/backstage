@@ -15,9 +15,14 @@
  */
 
 import { CatalogClient } from '@backstage/catalog-client';
-import { createRouter } from '@backstage/plugin-scaffolder-backend';
+import {
+  createBuiltinActions,
+  createRouter,
+} from '@backstage/plugin-scaffolder-backend';
 import { Router } from 'express';
 import type { PluginEnvironment } from '../types';
+import { ScmIntegrations } from '@backstage/integration';
+import { createConfluenceToMarkdownAction } from '@backstage/plugin-scaffolder-backend-module-confluence-to-markdown';
 
 export default async function createPlugin(
   env: PluginEnvironment,
@@ -26,11 +31,33 @@ export default async function createPlugin(
     discoveryApi: env.discovery,
   });
 
+  const integrations = ScmIntegrations.fromConfig(env.config);
+
+  const builtInActions = createBuiltinActions({
+    integrations,
+    config: env.config,
+    catalogClient,
+    reader: env.reader,
+  });
+
+  const actions = [
+    ...builtInActions,
+    createConfluenceToMarkdownAction({
+      integrations,
+      config: env.config,
+      reader: env.reader,
+    }),
+  ];
+
   return await createRouter({
     logger: env.logger,
     config: env.config,
     database: env.database,
     catalogClient: catalogClient,
     reader: env.reader,
+    identity: env.identity,
+    scheduler: env.scheduler,
+    permissions: env.permissions,
+    actions,
   });
 }

@@ -16,8 +16,14 @@
 
 import { UrlReader, resolveSafeChildPath } from '@backstage/backend-common';
 import { ScmIntegrations } from '@backstage/integration';
-import { fetchContents } from './helpers';
-import { createTemplateAction } from '../../createTemplateAction';
+import { examples } from './plain.examples';
+
+import {
+  createTemplateAction,
+  fetchContents,
+} from '@backstage/plugin-scaffolder-node';
+
+export const ACTION_ID = 'fetch:plain';
 
 /**
  * Downloads content and places it in the workspace, or optionally
@@ -31,9 +37,10 @@ export function createFetchPlainAction(options: {
   const { reader, integrations } = options;
 
   return createTemplateAction<{ url: string; targetPath?: string }>({
-    id: 'fetch:plain',
+    id: ACTION_ID,
+    examples,
     description:
-      "Downloads content and places it in the workspace, or optionally in a subdirectory specified by the 'targetPath' input option.",
+      'Downloads content and places it in the workspace, or optionally in a subdirectory specified by the `targetPath` input option.',
     schema: {
       input: {
         type: 'object',
@@ -54,6 +61,7 @@ export function createFetchPlainAction(options: {
         },
       },
     },
+    supportsDryRun: true,
     async handler(ctx) {
       ctx.logger.info('Fetching plain content from remote URL');
 

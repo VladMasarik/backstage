@@ -20,11 +20,12 @@ const octokit = {
   paginate: async (fn: any) => (await fn()).data,
   apps: {
     listInstallations: jest.fn(),
+    listReposAccessibleToInstallation: jest.fn(),
     createInstallationAccessToken: jest.fn(),
   },
 };
 
-jest.doMock('@octokit/rest', () => {
+jest.mock('@octokit/rest', () => {
   class Octokit {
     constructor() {
       return octokit;
@@ -56,6 +57,7 @@ describe('SingleInstanceGithubCredentialsProvider tests', () => {
       token: 'hardcoded_token',
     });
   });
+
   it('create repository specific tokens', async () => {
     octokit.apps.listInstallations.mockResolvedValue({
       headers: {
@@ -64,11 +66,6 @@ describe('SingleInstanceGithubCredentialsProvider tests', () => {
       data: [
         {
           id: 1,
-          repository_selection: 'selected',
-          account: null,
-        },
-        {
-          id: 2,
           repository_selection: 'selected',
           account: {
             login: 'backstage',
@@ -136,6 +133,66 @@ describe('SingleInstanceGithubCredentialsProvider tests', () => {
     expect(token).toEqual('secret_token');
   });
 
+  it('creates tokens for an organization with multiple configured apps', async () => {
+    const multipleGithubApps = SingleInstanceGithubCredentialsProvider.create({
+      host: 'github.com',
+      apps: [
+        {
+          appId: 1,
+          privateKey: 'privateKey',
+          webhookSecret: '123',
+          clientId: 'CLIENT_ID',
+          clientSecret: 'CLIENT_SECRET',
+          allowedInstallationOwners: ['not-allowed'],
+        },
+        {
+          appId: 2,
+          privateKey: 'privateKey_2',
+          webhookSecret: '456',
+          clientId: 'CLIENT_ID_2',
+          clientSecret: 'CLIENT_SECRET_2',
+          allowedInstallationOwners: ['allowed'],
+        },
+      ],
+    });
+
+    octokit.apps.listInstallations.mockResolvedValue({
+      headers: {
+        etag: '123',
+      },
+      data: [
+        {
+          id: 2,
+          repository_selection: 'all',
+          account: {
+            login: 'allowed',
+          },
+        },
+        {
+          id: 2,
+          repository_selection: 'all',
+          account: {
+            login: 'not-allowed',
+          },
+        },
+      ],
+    } as RestEndpointMethodTypes['apps']['listInstallations']['response']);
+
+    octokit.apps.createInstallationAccessToken.mockResolvedValue({
+      data: {
+        expires_at: DateTime.local().plus({ hours: 1 }).toString(),
+        token: 'secret_token',
+      },
+    } as RestEndpointMethodTypes['apps']['createInstallationAccessToken']['response']);
+
+    const { token, headers } = await multipleGithubApps.getCredentials({
+      url: 'https://github.com/allowed',
+    });
+
+    expect(headers).toEqual({ Authorization: 'Bearer secret_token' });
+    expect(token).toEqual('secret_token');
+  });
+
   it('does not return a token where the organisation is not in the allowedInstallationsList', async () => {
     github = SingleInstanceGithubCredentialsProvider.create({
       host: 'github.com',
@@ -194,8 +251,13 @@ describe('SingleInstanceGithubCredentialsProvider tests', () => {
       data: {
         expires_at: DateTime.local().plus({ hours: 1 }).toString(),
         token: 'secret_token',
+        repository_selection: 'selected',
       },
     } as RestEndpointMethodTypes['apps']['createInstallationAccessToken']['response']);
+
+    octokit.apps.listReposAccessibleToInstallation.mockReturnValue({
+      data: [{ name: 'some-repo' }],
+    } as unknown as RestEndpointMethodTypes['apps']['listReposAccessibleToInstallation']['response']);
 
     const { token, headers } = await github.getCredentials({
       url: 'https://github.com/backstage',
@@ -324,5 +386,145 @@ describe('SingleInstanceGithubCredentialsProvider tests', () => {
 
     expect(headers).toEqual({ Authorization: 'Bearer secret_token' });
     expect(token).toEqual('secret_token');
+  });
+
+  it('should not throw when paginate response is an array of repositories', async () => {
+    const repoName = 'foobar';
+    octokit.apps.listInstallations.mockResolvedValue({
+      headers: {
+        etag: '123',
+      },
+      data: [
+        {
+          id: 1,
+          repository_selection: 'all',
+          account: {
+            login: 'backstage',
+          },
+        },
+      ],
+    } as RestEndpointMethodTypes['apps']['listInstallations']['response']);
+
+    octokit.apps.createInstallationAccessToken.mockResolvedValueOnce({
+      data: {
+        expires_at: DateTime.local().plus({ hours: 1 }).toString(),
+        token: 'secret_token',
+        repository_selection: 'selected',
+      },
+    } as RestEndpointMethodTypes['apps']['createInstallationAccessToken']['response']);
+
+    octokit.apps.listReposAccessibleToInstallation.mockReturnValue({
+      data: [{ name: repoName }],
+    } as unknown as RestEndpointMethodTypes['apps']['listReposAccessibleToInstallation']['response']);
+
+    await expect(
+      github.getCredentials({
+        url: `https://github.com/backstage/${repoName}`,
+      }),
+    ).resolves.not.toThrow();
+  });
+
+  it('should not throw when paginate response is an object with a property containing an array of repositories', async () => {
+    const repoName = 'foobar';
+    octokit.apps.listInstallations.mockResolvedValue({
+      headers: {
+        etag: '123',
+      },
+      data: [
+        {
+          id: 1,
+          repository_selection: 'all',
+          account: {
+            login: 'backstage',
+          },
+        },
+      ],
+    } as RestEndpointMethodTypes['apps']['listInstallations']['response']);
+
+    octokit.apps.createInstallationAccessToken.mockResolvedValueOnce({
+      data: {
+        expires_at: DateTime.local().plus({ hours: 1 }).toString(),
+        token: 'secret_token',
+        repository_selection: 'selected',
+      },
+    } as RestEndpointMethodTypes['apps']['createInstallationAccessToken']['response']);
+
+    octokit.apps.listReposAccessibleToInstallation.mockReturnValue({
+      data: {
+        repositories: [{ name: repoName }],
+      },
+    } as RestEndpointMethodTypes['apps']['listReposAccessibleToInstallation']['response']);
+
+    await expect(
+      github.getCredentials({
+        url: `https://github.com/backstage/${repoName}`,
+      }),
+    ).resolves.not.toThrow();
+  });
+
+  it('should cache access token', async () => {
+    octokit.apps.listInstallations.mockReturnValue({
+      headers: {
+        etag: '123',
+      },
+      data: [
+        {
+          id: 1,
+          repository_selection: 'all',
+          account: {
+            login: 'backstage',
+          },
+        },
+      ],
+    } as RestEndpointMethodTypes['apps']['listInstallations']['response']);
+
+    octokit.apps.createInstallationAccessToken.mockReturnValue({
+      data: {
+        expires_at: DateTime.local().plus({ minutes: 11 }).toString(),
+        token: 'secret_token',
+      },
+    } as RestEndpointMethodTypes['apps']['createInstallationAccessToken']['response']);
+
+    await github.getCredentials({ url: 'https://github.com/backstage' });
+    await github.getCredentials({ url: 'https://github.com/backstage' });
+
+    expect(octokit.apps.listInstallations.mock.calls.length).toBe(1);
+    expect(octokit.apps.createInstallationAccessToken.mock.calls.length).toBe(
+      1,
+    );
+  });
+
+  it('should expire access token cache when less than 10 mins before token expires', async () => {
+    octokit.apps.listInstallations.mockReturnValue({
+      headers: {
+        etag: '123',
+      },
+      data: [
+        {
+          id: 1,
+          repository_selection: 'all',
+          account: {
+            login: 'backstage',
+          },
+        },
+      ],
+    } as RestEndpointMethodTypes['apps']['listInstallations']['response']);
+
+    octokit.apps.createInstallationAccessToken.mockReturnValue({
+      data: {
+        expires_at: DateTime.local()
+          .plus({ minutes: 9, seconds: 59, milliseconds: 999 })
+          .toString(),
+        token: 'secret_token',
+      },
+    } as RestEndpointMethodTypes['apps']['createInstallationAccessToken']['response']);
+
+    await github.getCredentials({ url: 'https://github.com/backstage' });
+    await github.getCredentials({ url: 'https://github.com/backstage' });
+
+    expect(octokit.apps.listInstallations.mock.calls.length).toBe(2);
+    expect(octokit.apps.createInstallationAccessToken.mock.calls.length).toBe(
+      2,
+    );
   });
 });

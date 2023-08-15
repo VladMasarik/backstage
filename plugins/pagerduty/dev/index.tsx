@@ -13,7 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { createDevApp } from '@backstage/dev-utils';
-import { pagerDutyPlugin } from '../src/plugin';
 
-createDevApp().registerPlugin(pagerDutyPlugin).render();
+import React from 'react';
+import { EntityProvider } from '@backstage/plugin-catalog-react';
+import { createDevApp } from '@backstage/dev-utils';
+import { pagerDutyPlugin, EntityPagerDutyCard } from '../src/plugin';
+import { pagerDutyApiRef } from '../src/api';
+import { mockPagerDutyApi } from './mockPagerDutyApi';
+import { mockEntity } from './mockEntity';
+
+createDevApp()
+  .registerApi({
+    api: pagerDutyApiRef,
+    deps: {},
+    factory: () => mockPagerDutyApi,
+  })
+  .registerPlugin(pagerDutyPlugin)
+  .addPage({
+    path: '/pagerduty',
+    title: 'PagerDuty',
+    element: (
+      <EntityProvider entity={mockEntity}>
+        <EntityPagerDutyCard />
+      </EntityProvider>
+    ),
+  })
+  .render();

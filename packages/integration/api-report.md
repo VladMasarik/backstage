@@ -39,6 +39,18 @@ export type AwsS3IntegrationConfig = {
 };
 
 // @public
+export type AzureClientSecretCredential = {
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+};
+
+// @public
+export type AzureCredential =
+  | AzureClientSecretCredential
+  | AzureManagedIdentityCredential;
+
+// @public
 export class AzureIntegration implements ScmIntegration {
   constructor(integrationConfig: AzureIntegrationConfig);
   // (undocumented)
@@ -63,6 +75,12 @@ export class AzureIntegration implements ScmIntegration {
 export type AzureIntegrationConfig = {
   host: string;
   token?: string;
+  credential?: AzureCredential;
+};
+
+// @public
+export type AzureManagedIdentityCredential = {
+  clientId: string;
 };
 
 // @public
@@ -150,7 +168,17 @@ export type BitbucketServerIntegrationConfig = {
   host: string;
   apiBaseUrl: string;
   token?: string;
+  username?: string;
+  password?: string;
 };
+
+// @public
+export function buildGerritGitilesArchiveUrl(
+  config: GerritIntegrationConfig,
+  project: string,
+  branch: string,
+  filePath: string,
+): string;
 
 // @public
 export class DefaultGithubCredentialsProvider
@@ -161,6 +189,18 @@ export class DefaultGithubCredentialsProvider
     integrations: ScmIntegrationRegistry,
   ): DefaultGithubCredentialsProvider;
   getCredentials(opts: { url: string }): Promise<GithubCredentials>;
+}
+
+// @public
+export class DefaultGitlabCredentialsProvider
+  implements GitlabCredentialsProvider
+{
+  // (undocumented)
+  static fromIntegrations(
+    integrations: ScmIntegrationRegistry,
+  ): DefaultGitlabCredentialsProvider;
+  // (undocumented)
+  getCredentials(opts: { url: string }): Promise<GitlabCredentials>;
 }
 
 // @public
@@ -195,6 +235,7 @@ export class GerritIntegration implements ScmIntegration {
 export type GerritIntegrationConfig = {
   host: string;
   baseUrl?: string;
+  cloneUrl?: string;
   gitilesBaseUrl?: string;
   username?: string;
   password?: string;
@@ -213,9 +254,9 @@ export function getAzureFileFetchUrl(url: string): string;
 export function getAzureRequestOptions(
   config: AzureIntegrationConfig,
   additionalHeaders?: Record<string, string>,
-): {
+): Promise<{
   headers: Record<string, string>;
-};
+}>;
 
 // @public
 export function getBitbucketCloudDefaultBranch(
@@ -293,6 +334,18 @@ export function getBitbucketServerRequestOptions(
 };
 
 // @public
+export function getGerritBranchApiUrl(
+  config: GerritIntegrationConfig,
+  url: string,
+): string;
+
+// @public
+export function getGerritCloneRepoUrl(
+  config: GerritIntegrationConfig,
+  url: string,
+): string;
+
+// @public
 export function getGerritFileContentsApiUrl(
   config: GerritIntegrationConfig,
   url: string,
@@ -309,15 +362,29 @@ export function getGerritRequestOptions(config: GerritIntegrationConfig): {
 };
 
 // @public
-export function getGitHubFileFetchUrl(
+export function getGiteaFileContentsUrl(
+  config: GiteaIntegrationConfig,
   url: string,
-  config: GitHubIntegrationConfig,
+): string;
+
+// @public
+export function getGiteaRequestOptions(config: GiteaIntegrationConfig): {
+  headers?: Record<string, string>;
+};
+
+// @public @deprecated (undocumented)
+export const getGitHubFileFetchUrl: typeof getGithubFileFetchUrl;
+
+// @public
+export function getGithubFileFetchUrl(
+  url: string,
+  config: GithubIntegrationConfig,
   credentials: GithubCredentials,
 ): string;
 
 // @public @deprecated
 export function getGitHubRequestOptions(
-  config: GitHubIntegrationConfig,
+  config: GithubIntegrationConfig,
   credentials: GithubCredentials,
 ): {
   headers: Record<string, string>;
@@ -330,8 +397,42 @@ export function getGitLabFileFetchUrl(
 ): Promise<string>;
 
 // @public
+export function getGitLabIntegrationRelativePath(
+  config: GitLabIntegrationConfig,
+): string;
+
+// @public
 export function getGitLabRequestOptions(config: GitLabIntegrationConfig): {
   headers: Record<string, string>;
+};
+
+// @public
+export class GiteaIntegration implements ScmIntegration {
+  constructor(config: GiteaIntegrationConfig);
+  // (undocumented)
+  readonly config: GiteaIntegrationConfig;
+  // (undocumented)
+  static factory: ScmIntegrationsFactory<GiteaIntegration>;
+  // (undocumented)
+  resolveEditUrl(url: string): string;
+  // (undocumented)
+  resolveUrl(options: {
+    url: string;
+    base: string;
+    lineNumber?: number | undefined;
+  }): string;
+  // (undocumented)
+  get title(): string;
+  // (undocumented)
+  get type(): string;
+}
+
+// @public
+export type GiteaIntegrationConfig = {
+  host: string;
+  baseUrl?: string;
+  username?: string;
+  password?: string;
 };
 
 // @public
@@ -346,7 +447,7 @@ export type GithubAppConfig = {
 
 // @public
 export class GithubAppCredentialsMux {
-  constructor(config: GitHubIntegrationConfig);
+  constructor(config: GithubIntegrationConfig);
   // (undocumented)
   getAllInstallations(): Promise<
     RestEndpointMethodTypes['apps']['listInstallations']['response']['data']
@@ -373,13 +474,22 @@ export interface GithubCredentialsProvider {
 // @public
 export type GithubCredentialType = 'app' | 'token';
 
-// @public
-export class GitHubIntegration implements ScmIntegration {
+// @public @deprecated (undocumented)
+export class GitHubIntegration extends GithubIntegration {
   constructor(integrationConfig: GitHubIntegrationConfig);
   // (undocumented)
   get config(): GitHubIntegrationConfig;
   // (undocumented)
   static factory: ScmIntegrationsFactory<GitHubIntegration>;
+}
+
+// @public
+export class GithubIntegration implements ScmIntegration {
+  constructor(integrationConfig: GithubIntegrationConfig);
+  // (undocumented)
+  get config(): GithubIntegrationConfig;
+  // (undocumented)
+  static factory: ScmIntegrationsFactory<GithubIntegration>;
   // (undocumented)
   resolveEditUrl(url: string): string;
   // (undocumented)
@@ -394,14 +504,31 @@ export class GitHubIntegration implements ScmIntegration {
   get type(): string;
 }
 
+// @public @deprecated (undocumented)
+export type GitHubIntegrationConfig = GithubIntegrationConfig;
+
 // @public
-export type GitHubIntegrationConfig = {
+export type GithubIntegrationConfig = {
   host: string;
   apiBaseUrl?: string;
   rawBaseUrl?: string;
   token?: string;
   apps?: GithubAppConfig[];
 };
+
+// @public (undocumented)
+export type GitlabCredentials = {
+  headers?: {
+    [name: string]: string;
+  };
+  token?: string;
+};
+
+// @public (undocumented)
+export interface GitlabCredentialsProvider {
+  // (undocumented)
+  getCredentials(opts: { url: string }): Promise<GitlabCredentials>;
+}
 
 // @public
 export class GitLabIntegration implements ScmIntegration {
@@ -453,10 +580,22 @@ export interface IntegrationsByType {
   // (undocumented)
   gerrit: ScmIntegrationsGroup<GerritIntegration>;
   // (undocumented)
-  github: ScmIntegrationsGroup<GitHubIntegration>;
+  gitea: ScmIntegrationsGroup<GiteaIntegration>;
+  // (undocumented)
+  github: ScmIntegrationsGroup<GithubIntegration>;
   // (undocumented)
   gitlab: ScmIntegrationsGroup<GitLabIntegration>;
 }
+
+// @public
+export function parseGerritGitilesUrl(
+  config: GerritIntegrationConfig,
+  url: string,
+): {
+  branch: string;
+  filePath: string;
+  project: string;
+};
 
 // @public
 export function parseGerritJsonResponse(response: Response): Promise<unknown>;
@@ -522,14 +661,23 @@ export function readGerritIntegrationConfigs(
 ): GerritIntegrationConfig[];
 
 // @public
-export function readGitHubIntegrationConfig(
-  config: Config,
-): GitHubIntegrationConfig;
+export function readGiteaConfig(config: Config): GiteaIntegrationConfig;
+
+// @public @deprecated (undocumented)
+export const readGitHubIntegrationConfig: typeof readGithubIntegrationConfig;
 
 // @public
-export function readGitHubIntegrationConfigs(
+export function readGithubIntegrationConfig(
+  config: Config,
+): GithubIntegrationConfig;
+
+// @public @deprecated (undocumented)
+export const readGitHubIntegrationConfigs: typeof readGithubIntegrationConfigs;
+
+// @public
+export function readGithubIntegrationConfigs(
   configs: Config[],
-): GitHubIntegrationConfig[];
+): GithubIntegrationConfig[];
 
 // @public
 export function readGitLabIntegrationConfig(
@@ -546,8 +694,11 @@ export function readGoogleGcsIntegrationConfig(
   config: Config,
 ): GoogleGcsIntegrationConfig;
 
+// @public @deprecated (undocumented)
+export const replaceGitHubUrlType: typeof replaceGithubUrlType;
+
 // @public
-export function replaceGitHubUrlType(
+export function replaceGithubUrlType(
   url: string,
   type: 'blob' | 'tree' | 'edit',
 ): string;
@@ -586,7 +737,9 @@ export interface ScmIntegrationRegistry
   // (undocumented)
   gerrit: ScmIntegrationsGroup<GerritIntegration>;
   // (undocumented)
-  github: ScmIntegrationsGroup<GitHubIntegration>;
+  gitea: ScmIntegrationsGroup<GiteaIntegration>;
+  // (undocumented)
+  github: ScmIntegrationsGroup<GithubIntegration>;
   // (undocumented)
   gitlab: ScmIntegrationsGroup<GitLabIntegration>;
   resolveEditUrl(url: string): string;
@@ -619,7 +772,9 @@ export class ScmIntegrations implements ScmIntegrationRegistry {
   // (undocumented)
   get gerrit(): ScmIntegrationsGroup<GerritIntegration>;
   // (undocumented)
-  get github(): ScmIntegrationsGroup<GitHubIntegration>;
+  get gitea(): ScmIntegrationsGroup<GiteaIntegration>;
+  // (undocumented)
+  get github(): ScmIntegrationsGroup<GithubIntegration>;
   // (undocumented)
   get gitlab(): ScmIntegrationsGroup<GitLabIntegration>;
   // (undocumented)
@@ -651,7 +806,7 @@ export class SingleInstanceGithubCredentialsProvider
   implements GithubCredentialsProvider
 {
   // (undocumented)
-  static create: (config: GitHubIntegrationConfig) => GithubCredentialsProvider;
+  static create: (config: GithubIntegrationConfig) => GithubCredentialsProvider;
   getCredentials(opts: { url: string }): Promise<GithubCredentials>;
 }
 ```

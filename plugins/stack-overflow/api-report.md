@@ -5,19 +5,33 @@
 ```ts
 /// <reference types="react" />
 
+import { ApiRef } from '@backstage/core-plugin-api';
 import { BackstagePlugin } from '@backstage/core-plugin-api';
-import { ComponentRenderer } from '@backstage/plugin-home';
-import { ReactNode } from 'react';
+import { CardExtensionProps } from '@backstage/plugin-home-react';
+import { default as React_2 } from 'react';
+import { ResultHighlight } from '@backstage/plugin-search-common';
+import { SearchResultListItemExtensionProps } from '@backstage/plugin-search-react';
 
 // @public
 export const HomePageStackOverflowQuestions: (
-  props: ComponentRenderer & {
-    title?: string | undefined;
-  } & StackOverflowQuestionsContentProps,
+  props: CardExtensionProps<StackOverflowQuestionsContentProps>,
 ) => JSX.Element;
 
+// @public (undocumented)
+export type StackOverflowApi = {
+  listQuestions(options?: {
+    requestParams: StackOverflowQuestionsRequestParams;
+  }): Promise<StackOverflowQuestion[]>;
+};
+
+// @public (undocumented)
+export const stackOverflowApiRef: ApiRef<StackOverflowApi>;
+
 // @public
-export const stackOverflowPlugin: BackstagePlugin<{}, {}>;
+export const StackOverflowIcon: () => JSX.Element;
+
+// @public
+export const stackOverflowPlugin: BackstagePlugin<{}, {}, {}>;
 
 // @public
 export type StackOverflowQuestion = {
@@ -31,6 +45,7 @@ export type StackOverflowQuestion = {
 // @public
 export type StackOverflowQuestionsContentProps = {
   requestParams: StackOverflowQuestionsRequestParams;
+  icon?: React.ReactNode;
 };
 
 // @public
@@ -39,8 +54,15 @@ export type StackOverflowQuestionsRequestParams = {
 };
 
 // @public
-export const StackOverflowSearchResultListItem: (props: {
-  result: any;
-  icon?: ReactNode;
-}) => JSX.Element;
+export const StackOverflowSearchResultListItem: (
+  props: SearchResultListItemExtensionProps<StackOverflowSearchResultListItemProps>,
+) => JSX.Element | null;
+
+// @public
+export type StackOverflowSearchResultListItemProps = {
+  result?: any;
+  icon?: React_2.ReactNode;
+  rank?: number;
+  highlight?: ResultHighlight;
+};
 ```

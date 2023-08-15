@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { ComponentType, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useOutlet } from 'react-router-dom';
 
 import {
@@ -27,19 +27,25 @@ import {
 
 import { TechDocsAddonLocations, TechDocsAddonOptions } from './types';
 
+/**
+ * Key for each addon.
+ * @public
+ */
 export const TECHDOCS_ADDONS_KEY = 'techdocs.addons.addon.v1';
 
 /**
- * Marks the <TechDocsAddons> registry component.
- * @alpha
+ * Marks the `<TechDocsAddons>` registry component.
+ * @public
  */
 export const TECHDOCS_ADDONS_WRAPPER_KEY = 'techdocs.addons.wrapper.v1';
 
 /**
  * TechDocs Addon registry.
- * @alpha
+ * @public
  */
-export const TechDocsAddons: React.ComponentType = () => null;
+export const TechDocsAddons: React.ComponentType<
+  React.PropsWithChildren<{}>
+> = () => null;
 
 attachComponentData(TechDocsAddons, TECHDOCS_ADDONS_WRAPPER_KEY, true);
 
@@ -48,12 +54,30 @@ const getDataKeyByName = (name: string) => {
 };
 
 /**
- * Create a TechDocs addon.
- * @alpha
+ * Create a TechDocs addon overload signature without props.
+ * @public
+ */
+export function createTechDocsAddonExtension(
+  options: TechDocsAddonOptions,
+): Extension<() => JSX.Element | null>;
+
+/**
+ * Create a TechDocs addon overload signature with props.
+ * @public
  */
 export function createTechDocsAddonExtension<TComponentProps>(
   options: TechDocsAddonOptions<TComponentProps>,
-): Extension<ComponentType<TComponentProps>> {
+): Extension<(props: TComponentProps) => JSX.Element | null>;
+
+/**
+ * Create a TechDocs addon implementation.
+ * @public
+ */
+export function createTechDocsAddonExtension<
+  TComponentProps extends React.PropsWithChildren<{}>,
+>(
+  options: TechDocsAddonOptions<TComponentProps>,
+): Extension<(props: TComponentProps) => JSX.Element | null> {
   const { name, component: TechDocsAddon } = options;
   return createReactExtension({
     name,
@@ -96,7 +120,7 @@ const getAllTechDocsAddonsData = (collection: ElementCollection) => {
 
 /**
  * hook to use addons in components
- * @alpha
+ * @public
  */
 export const useTechDocsAddons = () => {
   const node = useOutlet();

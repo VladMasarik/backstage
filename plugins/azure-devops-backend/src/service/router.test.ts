@@ -22,6 +22,7 @@ import {
   BuildResult,
   BuildRun,
   BuildStatus,
+  GitTag,
   PullRequest,
   PullRequestStatus,
   RepoBuild,
@@ -32,7 +33,7 @@ import { ConfigReader } from '@backstage/config';
 import { GitRepository } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { createRouter } from './router';
 import express from 'express';
-import { getVoidLogger } from '@backstage/backend-common';
+import { getVoidLogger, UrlReaders } from '@backstage/backend-common';
 import request from 'supertest';
 
 describe('createRouter', () => {
@@ -46,24 +47,36 @@ describe('createRouter', () => {
       getBuildDefinitions: jest.fn(),
       getRepoBuilds: jest.fn(),
       getDefinitionBuilds: jest.fn(),
+      getGitTags: jest.fn(),
       getPullRequests: jest.fn(),
       getBuilds: jest.fn(),
       getBuildRuns: jest.fn(),
       getAllTeams: jest.fn(),
       getTeamMembers: jest.fn(),
+      getReadme: jest.fn(),
     } as any;
+
+    const config = new ConfigReader({
+      azureDevOps: {
+        token: 'foo',
+        host: 'host.com',
+        organization: 'myOrg',
+        top: 5,
+      },
+    });
+
+    const logger = getVoidLogger();
+
     const router = await createRouter({
+      config,
+      logger,
       azureDevOpsApi,
-      logger: getVoidLogger(),
-      config: new ConfigReader({
-        azureDevOps: {
-          token: 'foo',
-          host: 'host.com',
-          organization: 'myOrg',
-          top: 5,
-        },
+      reader: UrlReaders.default({
+        config,
+        logger,
       }),
     });
+
     app = express().use(router);
   });
 
@@ -205,6 +218,43 @@ describe('createRouter', () => {
       );
       expect(response.status).toEqual(200);
       expect(response.body).toEqual(repoBuilds);
+    });
+  });
+
+  describe('GET /git-tags/:projectName/:repoName', () => {
+    it('fetches a list of git tags', async () => {
+      const firstGitTag: GitTag = {
+        name: 'v1.1.2',
+        createdBy: 'Jane Doe',
+        commitLink:
+          'https://host.com/myOrg/_git/super-feature-repo/commit/1234567890abcdef1234567890abcdef12345678',
+        objectId: '1111aaaa2222bbbb3333cccc4444dddd5555eeee',
+        peeledObjectId: '1234567890abcdef1234567890abcdef12345678',
+        link: 'https://host.com/myOrg/_git/super-feature-repo?version=GTv1.1.2',
+      };
+
+      const secondGitTag: GitTag = {
+        name: 'v1.2.0',
+        createdBy: 'Jane Doe',
+        commitLink:
+          'https://host.com/myOrg/_git/super-feature-repo/commit/2222222222222222222222222222222222222222',
+        objectId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        peeledObjectId: '2222222222222222222222222222222222222222',
+        link: 'https://host.com/myOrg/_git/super-feature-repo?version=GTv1.2.0',
+      };
+
+      const gitTags: GitTag[] = [firstGitTag, secondGitTag];
+
+      azureDevOpsApi.getGitTags.mockResolvedValueOnce(gitTags);
+
+      const response = await request(app).get('/git-tags/myProject/myRepo');
+
+      expect(azureDevOpsApi.getGitTags).toHaveBeenCalledWith(
+        'myProject',
+        'myRepo',
+      );
+      expect(response.status).toEqual(200);
+      expect(response.body).toEqual(gitTags);
     });
   });
 
@@ -416,4 +466,67 @@ describe('createRouter', () => {
       expect(response.status).toEqual(200);
     });
   });
+
+  describe('GET /readme/:projectName/:repoName', () => {
+    it('fetches readme file', async () => {
+      const content = getReadmeMock();
+      const url = `https://host.com/myOrg/myProject/_git/myRepo?path=README.md`;
+
+      azureDevOpsApi.getReadme.mockResolvedValueOnce({
+        content,
+        url,
+      });
+
+      const response = await request(app).get(
+        '/readme/myProject/myRepo?path=README.md',
+      );
+      expect(azureDevOpsApi.getReadme).toHaveBeenCalledWith(
+        'host.com',
+        'myOrg',
+        'myProject',
+        'myRepo',
+      );
+      expect(response.status).toEqual(200);
+      expect(response.body).toEqual({
+        content,
+        url,
+      });
+    });
+  });
 });
+
+function getReadmeMock() {
+  return `
+    # Introduction 
+    TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+
+    # Getting Started
+    TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
+    1.	Installation process
+    2.	Software dependencies
+    3.	Latest releases
+    4.	API references
+
+    # Build and Test
+    TODO: Describe and show how to build your code and run the tests. 
+
+    # Contribute
+    TODO: Explain how other users and developers can contribute to make your code better. 
+
+    If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
+    - [ASP.NET Core](https://github.com/aspnet/Home)
+    - [Visual Studio Code](https://github.com/Microsoft/vscode)
+    - [Chakra Core](https://github.com/Microsoft/ChakraCore)
+
+
+    - ![Imagem 1](./images/image1.jpg)
+    - ![Imagem 2](./images/image2.png)
+    - ![Imagem 3](./images/image3.jpg)
+    - ![Imagem 4](./images/image4.webp)
+    - ![Imagem 5](./images/image5.png)
+    - ![Imagem 6](/images/image6.png)
+    - ![Imagem 7](/images/image-7.jpg)
+    - ![Imagem 8](./images/image-8.gif)
+    - ![Imagem 9](/images/image9.png)
+  `;
+}

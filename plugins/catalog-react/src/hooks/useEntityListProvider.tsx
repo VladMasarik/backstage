@@ -25,19 +25,22 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation } from 'react-router-dom';
 import useAsyncFn from 'react-use/lib/useAsyncFn';
 import useDebounce from 'react-use/lib/useDebounce';
 import useMountedState from 'react-use/lib/useMountedState';
 import { catalogApiRef } from '../api';
 import {
+  EntityErrorFilter,
   EntityKindFilter,
   EntityLifecycleFilter,
+  EntityOrphanFilter,
   EntityOwnerFilter,
   EntityTagFilter,
   EntityTextFilter,
   EntityTypeFilter,
   UserListFilter,
+  EntityNamespaceFilter,
 } from '../filters';
 import { EntityFilter } from '../types';
 import { reduceCatalogFilters, reduceEntityFilters } from '../utils';
@@ -52,6 +55,9 @@ export type DefaultEntityFilters = {
   lifecycles?: EntityLifecycleFilter;
   tags?: EntityTagFilter;
   text?: EntityTextFilter;
+  orphan?: EntityOrphanFilter;
+  error?: EntityErrorFilter;
+  namespace?: EntityNamespaceFilter;
 };
 
 /** @public */
@@ -111,9 +117,9 @@ type OutputState<EntityFilters extends DefaultEntityFilters> = {
  * Provides entities and filters for a catalog listing.
  * @public
  */
-export const EntityListProvider = <EntityFilters extends DefaultEntityFilters>({
-  children,
-}: PropsWithChildren<{}>) => {
+export const EntityListProvider = <EntityFilters extends DefaultEntityFilters>(
+  props: PropsWithChildren<{}>,
+) => {
   const isMounted = useMountedState();
   const catalogApi = useApi(catalogApiRef);
   const [requestedFilters, setRequestedFilters] = useState<EntityFilters>(
@@ -157,8 +163,9 @@ export const EntityListProvider = <EntityFilters extends DefaultEntityFilters>({
 
       const queryParams = Object.keys(requestedFilters).reduce(
         (params, key) => {
-          const filter: EntityFilter | undefined =
-            requestedFilters[key as keyof EntityFilters];
+          const filter = requestedFilters[key as keyof EntityFilters] as
+            | EntityFilter
+            | undefined;
           if (filter?.toQueryValue) {
             params[key] = filter.toQueryValue();
           }
@@ -244,7 +251,7 @@ export const EntityListProvider = <EntityFilters extends DefaultEntityFilters>({
 
   return (
     <EntityListContext.Provider value={value}>
-      {children}
+      {props.children}
     </EntityListContext.Provider>
   );
 };

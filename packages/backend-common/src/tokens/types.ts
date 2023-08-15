@@ -14,12 +14,4 @@
  * limitations under the License.
  */
 
-/**
- * Interface for creating and validating tokens.
- *
- * @public
- */
-export interface TokenManager {
-  getToken: () => Promise<{ token: string }>;
-  authenticate: (token: string) => Promise<void>;
-}
+export type { TokenManagerService as TokenManager } from '@backstage/backend-plugin-api';

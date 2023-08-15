@@ -107,11 +107,11 @@ describe('catalog:register', () => {
       {},
     );
 
-    expect(mockContext.output).toBeCalledWith(
+    expect(mockContext.output).toHaveBeenCalledWith(
       'entityRef',
       'component:default/test',
     );
-    expect(mockContext.output).toBeCalledWith(
+    expect(mockContext.output).toHaveBeenCalledWith(
       'catalogInfoUrl',
       'http://foo/var',
     );
@@ -160,7 +160,7 @@ describe('catalog:register', () => {
         catalogInfoUrl: 'http://foo/var',
       },
     });
-    expect(mockContext.output).toBeCalledWith(
+    expect(mockContext.output).toHaveBeenCalledWith(
       'entityRef',
       'component:default/test',
     );
@@ -202,7 +202,10 @@ describe('catalog:register', () => {
         catalogInfoUrl: 'http://foo/var',
       },
     });
-    expect(mockContext.output).toBeCalledWith('entityRef', 'api:default/test');
+    expect(mockContext.output).toHaveBeenCalledWith(
+      'entityRef',
+      'api:default/test',
+    );
   });
 
   it('should return entityRef with the first entity if no non-generated entities can be found', async () => {
@@ -234,7 +237,7 @@ describe('catalog:register', () => {
         catalogInfoUrl: 'http://foo/var',
       },
     });
-    expect(mockContext.output).toBeCalledWith(
+    expect(mockContext.output).toHaveBeenCalledWith(
       'entityRef',
       'location:default/generated-1238',
     );
@@ -254,7 +257,7 @@ describe('catalog:register', () => {
         catalogInfoUrl: 'http://foo/var',
       },
     });
-    expect(mockContext.output).not.toBeCalledWith(
+    expect(mockContext.output).not.toHaveBeenCalledWith(
       'entityRef',
       expect.any(String),
     );
@@ -262,9 +265,7 @@ describe('catalog:register', () => {
 
   it('should ignore failures when dry running the location in the catalog if `optional` is set', async () => {
     addLocation
-      .mockResolvedValueOnce({
-        entities: [],
-      })
+      .mockRejectedValueOnce(new Error('Not found'))
       .mockRejectedValueOnce(new Error('Not found'));
     await action.handler({
       ...mockContext,
@@ -292,9 +293,59 @@ describe('catalog:register', () => {
       {},
     );
 
-    expect(mockContext.output).toBeCalledWith(
+    expect(mockContext.output).toHaveBeenCalledWith(
       'catalogInfoUrl',
       'http://foo/var',
+    );
+  });
+
+  it('should fetch entities when adding location in the catalog fails and `optional` is set', async () => {
+    addLocation
+      .mockRejectedValueOnce(new Error('Already registered'))
+      .mockResolvedValueOnce({
+        entities: [
+          {
+            metadata: {
+              namespace: 'default',
+              name: 'test',
+            },
+            kind: 'Component',
+          } as Entity,
+        ],
+      });
+    await action.handler({
+      ...mockContext,
+      input: {
+        catalogInfoUrl: 'http://foo/var',
+        optional: true,
+      },
+    });
+
+    expect(addLocation).toHaveBeenNthCalledWith(
+      1,
+      {
+        type: 'url',
+        target: 'http://foo/var',
+      },
+      {},
+    );
+    expect(addLocation).toHaveBeenNthCalledWith(
+      2,
+      {
+        dryRun: true,
+        type: 'url',
+        target: 'http://foo/var',
+      },
+      {},
+    );
+
+    expect(mockContext.output).toHaveBeenCalledWith(
+      'catalogInfoUrl',
+      'http://foo/var',
+    );
+    expect(mockContext.output).toHaveBeenCalledWith(
+      'entityRef',
+      'component:default/test',
     );
   });
 });

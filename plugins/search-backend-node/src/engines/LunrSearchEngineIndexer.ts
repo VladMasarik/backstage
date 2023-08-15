@@ -19,7 +19,8 @@ import lunr from 'lunr';
 import { BatchSearchEngineIndexer } from '../indexing';
 
 /**
- * @beta
+ * Lunr specific search engine indexer
+ * @public
  */
 export class LunrSearchEngineIndexer extends BatchSearchEngineIndexer {
   private schemaInitialized = false;
@@ -27,11 +28,12 @@ export class LunrSearchEngineIndexer extends BatchSearchEngineIndexer {
   private docStore: Record<string, IndexableDocument> = {};
 
   constructor() {
-    super({ batchSize: 100 });
+    super({ batchSize: 1000 });
 
     this.builder = new lunr.Builder();
     this.builder.pipeline.add(lunr.trimmer, lunr.stopWordFilter, lunr.stemmer);
     this.builder.searchPipeline.add(lunr.stemmer);
+    this.builder.metadataWhitelist = ['position'];
   }
 
   // No async initialization required.

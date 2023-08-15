@@ -34,14 +34,31 @@ auth:
         clientId: ${AUTH_AUTH0_CLIENT_ID}
         clientSecret: ${AUTH_AUTH0_CLIENT_SECRET}
         domain: ${AUTH_AUTH0_DOMAIN_ID}
+        audience: ${AUTH_AUTH0_AUDIENCE}
+        connection: ${AUTH_AUTH0_CONNECTION}
+        connectionScope: ${AUTH_AUTH0_CONNECTION_SCOPE}
+  session:
+    secret: ${AUTH_SESSION_SECRET}
 ```
 
-The Auth0 provider is a structure with three configuration keys:
+The Auth0 provider is a structure with these configuration keys:
 
 - `clientId`: The Application client ID, found on the Auth0 Application page
 - `clientSecret`: The Application client secret, found on the Auth0 Application
   page
 - `domain`: The Application domain, found on the Auth0 Application page
+
+It additionally relies on the following configuration to function:
+
+- `session.secret`: The session secret is a key used for signing and/or encrypting cookies set by the application to maintain session state. In this case, 'your session secret' should be replaced with a long, complex, and unique string that only your application knows.
+
+Auth0 requires a session, so you need to give the session a secret key.
+
+## Optional Configuration
+
+- `audience`: The intended recipients of the token
+- `connection`: Social identity provider name. To check the available social connections, please visit [Auth0 Social Connections](https://marketplace.auth0.com/features/social-connections).
+- `connectionScope`: Additional scopes in the interactive token request. It should always be used in combination with the `connection` parameter
 
 ## Adding the provider to the Backstage frontend
 

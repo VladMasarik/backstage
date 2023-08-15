@@ -15,22 +15,27 @@
  */
 
 import { ScmIntegrations } from '@backstage/integration';
-import { TaskContext, WorkflowResponse, WorkflowRunner } from './types';
+import {
+  TaskContext,
+  TaskTrackType,
+  WorkflowResponse,
+  WorkflowRunner,
+} from './types';
 import * as winston from 'winston';
 import fs from 'fs-extra';
 import path from 'path';
 import nunjucks from 'nunjucks';
-import { JsonObject, JsonValue } from '@backstage/types';
-import { InputError } from '@backstage/errors';
+import { JsonArray, JsonObject, JsonValue } from '@backstage/types';
+import { InputError, NotAllowedError } from '@backstage/errors';
 import { PassThrough } from 'stream';
-import { isTruthy } from './helper';
+import { generateExampleOutput, isTruthy } from './helper';
 import { validate as validateJsonSchema } from 'jsonschema';
-import { parseRepoUrl } from '../actions/builtin/publish/util';
 import { TemplateActionRegistry } from '../actions';
 import {
   TemplateFilter,
   SecureTemplater,
   SecureTemplateRenderer,
+  TemplateGlobal,
 } from '../../lib/templating/SecureTemplater';
 import {
   TaskSpec,
@@ -38,12 +43,27 @@ import {
   TaskStep,
 } from '@backstage/plugin-scaffolder-common';
 
+import { TemplateAction } from '@backstage/plugin-scaffolder-node';
+import { createConditionAuthorizer } from '@backstage/plugin-permission-node';
+import { UserEntity } from '@backstage/catalog-model';
+import { createCounterMetric, createHistogramMetric } from '../../util/metrics';
+import { createDefaultFilters } from '../../lib/templating/filters';
+import {
+  AuthorizeResult,
+  PermissionEvaluator,
+  PolicyDecision,
+} from '@backstage/plugin-permission-common';
+import { scaffolderActionRules } from '../../service/rules';
+import { actionExecutePermission } from '@backstage/plugin-scaffolder-common/alpha';
+
 type NunjucksWorkflowRunnerOptions = {
   workingDirectory: string;
   actionRegistry: TemplateActionRegistry;
   integrations: ScmIntegrations;
   logger: winston.Logger;
   additionalTemplateFilters?: Record<string, TemplateFilter>;
+  additionalTemplateGlobals?: Record<string, TemplateGlobal>;
+  permissions?: PermissionEvaluator;
 };
 
 type TemplateContext = {
@@ -52,6 +72,11 @@ type TemplateContext = {
     [stepName: string]: { output: { [outputName: string]: JsonValue } };
   };
   secrets?: Record<string, string>;
+  user?: {
+    entity?: UserEntity;
+    ref?: string;
+  };
+  each?: JsonValue;
 };
 
 const isValidTaskSpec = (taskSpec: TaskSpec): taskSpec is TaskSpecV1beta3 => {
@@ -70,7 +95,6 @@ const createStepLogger = ({
     level: process.env.LOG_LEVEL || 'info',
     format: winston.format.combine(
       winston.format.colorize(),
-      winston.format.timestamp(),
       winston.format.simple(),
     ),
     defaultMeta: {},
@@ -89,8 +113,19 @@ const createStepLogger = ({
   return { taskLogger, streamLogger };
 };
 
+const isActionAuthorized = createConditionAuthorizer(
+  Object.values(scaffolderActionRules),
+);
+
 export class NunjucksWorkflowRunner implements WorkflowRunner {
-  constructor(private readonly options: NunjucksWorkflowRunnerOptions) {}
+  private readonly defaultTemplateFilters: Record<string, TemplateFilter>;
+  constructor(private readonly options: NunjucksWorkflowRunnerOptions) {
+    this.defaultTemplateFilters = createDefaultFilters({
+      integrations: this.options.integrations,
+    });
+  }
+
+  private readonly tracker = scaffoldingTracker();
 
   private isSingleTemplateString(input: string) {
     const { parser, nodes } = nunjucks as unknown as {
@@ -171,6 +206,189 @@ export class NunjucksWorkflowRunner implements WorkflowRunner {
     });
   }
 
+  async executeStep(
+    task: TaskContext,
+    step: TaskStep,
+    context: TemplateContext,
+    renderTemplate: (template: string, values: unknown) => string,
+    taskTrack: TaskTrackType,
+    workspacePath: string,
+    decision: PolicyDecision,
+  ) {
+    const stepTrack = await this.tracker.stepStart(task, step);
+
+    if (task.cancelSignal.aborted) {
+      throw new Error(`Step ${step.name} has been cancelled.`);
+    }
+
+    try {
+      if (step.if) {
+        const ifResult = await this.render(step.if, context, renderTemplate);
+        if (!isTruthy(ifResult)) {
+          await stepTrack.skipFalsy();
+          return;
+        }
+      }
+
+      const action: TemplateAction<JsonObject> =
+        this.options.actionRegistry.get(step.action);
+      const { taskLogger, streamLogger } = createStepLogger({ task, step });
+
+      if (task.isDryRun) {
+        const redactedSecrets = Object.fromEntries(
+          Object.entries(task.secrets ?? {}).map(secret => [
+            secret[0],
+            '[REDACTED]',
+          ]),
+        );
+        const debugInput =
+          (step.input &&
+            this.render(
+              step.input,
+              {
+                ...context,
+                secrets: redactedSecrets,
+              },
+              renderTemplate,
+            )) ??
+          {};
+        taskLogger.info(
+          `Running ${
+            action.id
+          } in dry-run mode with inputs (secrets redacted): ${JSON.stringify(
+            debugInput,
+            undefined,
+            2,
+          )}`,
+        );
+        if (!action.supportsDryRun) {
+          await taskTrack.skipDryRun(step, action);
+          const outputSchema = action.schema?.output;
+          if (outputSchema) {
+            context.steps[step.id] = {
+              output: generateExampleOutput(outputSchema) as {
+                [name in string]: JsonValue;
+              },
+            };
+          } else {
+            context.steps[step.id] = { output: {} };
+          }
+          return;
+        }
+      }
+
+      // Secrets are only passed when templating the input to actions for security reasons
+      const input =
+        (step.input &&
+          this.render(
+            step.input,
+            { ...context, secrets: task.secrets ?? {} },
+            renderTemplate,
+          )) ??
+        {};
+
+      if (action.schema?.input) {
+        const validateResult = validateJsonSchema(input, action.schema.input);
+        if (!validateResult.valid) {
+          const errors = validateResult.errors.join(', ');
+          throw new InputError(
+            `Invalid input passed to action ${action.id}, ${errors}`,
+          );
+        }
+      }
+
+      if (!isActionAuthorized(decision, { action: action.id, input })) {
+        throw new NotAllowedError(
+          `Unauthorized action: ${
+            action.id
+          }. The action is not allowed. Input: ${JSON.stringify(
+            input,
+            null,
+            2,
+          )}`,
+        );
+      }
+
+      const tmpDirs = new Array<string>();
+      const stepOutput: { [outputName: string]: JsonValue } = {};
+
+      const iterations = new Array<JsonValue>();
+      if (step.each) {
+        const each = await this.render(step.each, context, renderTemplate);
+        iterations.push(
+          ...Object.keys(each).map((key: any) => {
+            return { key: key, value: each[key] };
+          }),
+        );
+      } else {
+        iterations.push({});
+      }
+
+      let actionInput = input;
+      for (const iteration of iterations) {
+        if (step.each) {
+          taskLogger.info(`Running step each: ${iteration}`);
+          const iterationContext = {
+            ...context,
+            each: iteration,
+          };
+          // re-render input with the modified context that includes each
+          actionInput =
+            (step.input &&
+              this.render(
+                step.input,
+                { ...iterationContext, secrets: task.secrets ?? {} },
+                renderTemplate,
+              )) ??
+            {};
+        }
+        await action.handler({
+          input: actionInput,
+          secrets: task.secrets ?? {},
+          logger: taskLogger,
+          logStream: streamLogger,
+          workspacePath,
+          createTemporaryDirectory: async () => {
+            const tmpDir = await fs.mkdtemp(
+              `${workspacePath}_step-${step.id}-`,
+            );
+            tmpDirs.push(tmpDir);
+            return tmpDir;
+          },
+          output(name: string, value: JsonValue) {
+            if (step.each) {
+              stepOutput[name] = stepOutput[name] || [];
+              (stepOutput[name] as JsonArray).push(value);
+            } else {
+              stepOutput[name] = value;
+            }
+          },
+          templateInfo: task.spec.templateInfo,
+          user: task.spec.user,
+          isDryRun: task.isDryRun,
+          signal: task.cancelSignal,
+        });
+      }
+
+      // Remove all temporary directories that were created when executing the action
+      for (const tmpDir of tmpDirs) {
+        await fs.remove(tmpDir);
+      }
+
+      context.steps[step.id] = { output: stepOutput };
+
+      if (task.cancelSignal.aborted) {
+        throw new Error(`Step ${step.name} has been cancelled.`);
+      }
+
+      await stepTrack.markSuccessful();
+    } catch (err) {
+      await taskTrack.markFailed(step, err);
+      await stepTrack.markFailed();
+      throw err;
+    }
+  }
+
   async execute(task: TaskContext): Promise<WorkflowResponse> {
     if (!isValidTaskSpec(task.spec)) {
       throw new InputError(
@@ -182,120 +400,49 @@ export class NunjucksWorkflowRunner implements WorkflowRunner {
       await task.getWorkspaceName(),
     );
 
-    const { integrations } = this.options;
+    const { additionalTemplateFilters, additionalTemplateGlobals } =
+      this.options;
+
     const renderTemplate = await SecureTemplater.loadRenderer({
-      // TODO(blam): let's work out how we can deprecate this.
-      // We shouldn't really need to be exposing these now we can deal with
-      // objects in the params block.
-      // Maybe we can expose a new RepoUrlPicker with secrets for V3 that provides an object already.
-      parseRepoUrl(url: string) {
-        return parseRepoUrl(url, integrations);
+      templateFilters: {
+        ...this.defaultTemplateFilters,
+        ...additionalTemplateFilters,
       },
-      additionalTemplateFilters: this.options.additionalTemplateFilters,
+      templateGlobals: additionalTemplateGlobals,
     });
 
     try {
+      const taskTrack = await this.tracker.taskStart(task);
       await fs.ensureDir(workspacePath);
-      await task.emitLog(
-        `Starting up task with ${task.spec.steps.length} steps`,
-      );
 
       const context: TemplateContext = {
         parameters: task.spec.parameters,
         steps: {},
+        user: task.spec.user,
       };
 
+      const [decision]: PolicyDecision[] =
+        this.options.permissions && task.spec.steps.length
+          ? await this.options.permissions.authorizeConditional(
+              [{ permission: actionExecutePermission }],
+              { token: task.secrets?.backstageToken },
+            )
+          : [{ result: AuthorizeResult.ALLOW }];
+
       for (const step of task.spec.steps) {
-        try {
-          if (step.if) {
-            const ifResult = await this.render(
-              step.if,
-              context,
-              renderTemplate,
-            );
-            if (!isTruthy(ifResult)) {
-              await task.emitLog(
-                `Skipping step ${step.id} because it's if condition was false`,
-                { stepId: step.id, status: 'skipped' },
-              );
-              continue;
-            }
-          }
-
-          await task.emitLog(`Beginning step ${step.name}`, {
-            stepId: step.id,
-            status: 'processing',
-          });
-
-          const action = this.options.actionRegistry.get(step.action);
-          const { taskLogger, streamLogger } = createStepLogger({ task, step });
-
-          // Secrets are only passed when templating the input to actions for security reasons
-          const input =
-            (step.input &&
-              this.render(
-                step.input,
-                { ...context, secrets: task.secrets ?? {} },
-                renderTemplate,
-              )) ??
-            {};
-
-          if (action.schema?.input) {
-            const validateResult = validateJsonSchema(
-              input,
-              action.schema.input,
-            );
-            if (!validateResult.valid) {
-              const errors = validateResult.errors.join(', ');
-              throw new InputError(
-                `Invalid input passed to action ${action.id}, ${errors}`,
-              );
-            }
-          }
-
-          const tmpDirs = new Array<string>();
-          const stepOutput: { [outputName: string]: JsonValue } = {};
-
-          await action.handler({
-            input,
-            secrets: task.secrets ?? {},
-            logger: taskLogger,
-            logStream: streamLogger,
-            workspacePath,
-            createTemporaryDirectory: async () => {
-              const tmpDir = await fs.mkdtemp(
-                `${workspacePath}_step-${step.id}-`,
-              );
-              tmpDirs.push(tmpDir);
-              return tmpDir;
-            },
-            output(name: string, value: JsonValue) {
-              stepOutput[name] = value;
-            },
-            templateInfo: task.spec.templateInfo,
-          });
-
-          // Remove all temporary directories that were created when executing the action
-          for (const tmpDir of tmpDirs) {
-            await fs.remove(tmpDir);
-          }
-
-          context.steps[step.id] = { output: stepOutput };
-
-          await task.emitLog(`Finished step ${step.name}`, {
-            stepId: step.id,
-            status: 'completed',
-          });
-        } catch (err) {
-          await task.emitLog(String(err.stack), {
-            stepId: step.id,
-            status: 'failed',
-          });
-          throw err;
-        }
+        await this.executeStep(
+          task,
+          step,
+          context,
+          renderTemplate,
+          taskTrack,
+          workspacePath,
+          decision,
+        );
       }
 
       const output = this.render(task.spec.output, context, renderTemplate);
+      await taskTrack.markSuccessful();
 
       return { output };
     } finally {
@@ -304,4 +451,153 @@ export class NunjucksWorkflowRunner implements WorkflowRunner {
       }
     }
   }
+}
+
+function scaffoldingTracker() {
+  const taskCount = createCounterMetric({
+    name: 'scaffolder_task_count',
+    help: 'Count of task runs',
+    labelNames: ['template', 'user', 'result'],
+  });
+  const taskDuration = createHistogramMetric({
+    name: 'scaffolder_task_duration',
+    help: 'Duration of a task run',
+    labelNames: ['template', 'result'],
+  });
+  const stepCount = createCounterMetric({
+    name: 'scaffolder_step_count',
+    help: 'Count of step runs',
+    labelNames: ['template', 'step', 'result'],
+  });
+  const stepDuration = createHistogramMetric({
+    name: 'scaffolder_step_duration',
+    help: 'Duration of a step runs',
+    labelNames: ['template', 'step', 'result'],
+  });
+
+  async function taskStart(task: TaskContext) {
+    await task.emitLog(`Starting up task with ${task.spec.steps.length} steps`);
+    const template = task.spec.templateInfo?.entityRef || '';
+    const user = task.spec.user?.ref || '';
+
+    const taskTimer = taskDuration.startTimer({
+      template,
+    });
+
+    async function skipDryRun(
+      step: TaskStep,
+      action: TemplateAction<JsonObject>,
+    ) {
+      task.emitLog(`Skipping because ${action.id} does not support dry-run`, {
+        stepId: step.id,
+        status: 'skipped',
+      });
+    }
+
+    async function markSuccessful() {
+      taskCount.inc({
+        template,
+        user,
+        result: 'ok',
+      });
+      taskTimer({ result: 'ok' });
+    }
+
+    async function markFailed(step: TaskStep, err: Error) {
+      await task.emitLog(String(err.stack), {
+        stepId: step.id,
+        status: 'failed',
+      });
+      taskCount.inc({
+        template,
+        user,
+        result: 'failed',
+      });
+      taskTimer({ result: 'failed' });
+    }
+
+    async function markCancelled(step: TaskStep) {
+      await task.emitLog(`Step ${step.id} has been cancelled.`, {
+        stepId: step.id,
+        status: 'cancelled',
+      });
+      taskCount.inc({
+        template,
+        user,
+        result: 'cancelled',
+      });
+      taskTimer({ result: 'cancelled' });
+    }
+
+    return {
+      skipDryRun,
+      markCancelled,
+      markSuccessful,
+      markFailed,
+    };
+  }
+
+  async function stepStart(task: TaskContext, step: TaskStep) {
+    await task.emitLog(`Beginning step ${step.name}`, {
+      stepId: step.id,
+      status: 'processing',
+    });
+    const template = task.spec.templateInfo?.entityRef || '';
+
+    const stepTimer = stepDuration.startTimer({
+      template,
+      step: step.name,
+    });
+
+    async function markSuccessful() {
+      await task.emitLog(`Finished step ${step.name}`, {
+        stepId: step.id,
+        status: 'completed',
+      });
+      stepCount.inc({
+        template,
+        step: step.name,
+        result: 'ok',
+      });
+      stepTimer({ result: 'ok' });
+    }
+
+    async function markCancelled() {
+      stepCount.inc({
+        template,
+        step: step.name,
+        result: 'cancelled',
+      });
+      stepTimer({ result: 'cancelled' });
+    }
+
+    async function markFailed() {
+      stepCount.inc({
+        template,
+        step: step.name,
+        result: 'failed',
+      });
+      stepTimer({ result: 'failed' });
+    }
+
+    async function skipFalsy() {
+      await task.emitLog(
+        `Skipping step ${step.id} because its if condition was false`,
+        { stepId: step.id, status: 'skipped' },
+      );
+      stepTimer({ result: 'skipped' });
+    }
+
+    return {
+      markCancelled,
+      markFailed,
+      markSuccessful,
+      skipFalsy,
+    };
+  }
+
+  return {
+    taskStart,
+    stepStart,
+  };
 }

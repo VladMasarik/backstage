@@ -15,6 +15,10 @@
  */
 
 import {
+  DEFAULT_NAMESPACE,
+  stringifyEntityRef,
+} from '@backstage/catalog-model';
+import {
   createRouter,
   providers,
   defaultAuthProviderFactories,
@@ -40,7 +44,27 @@ export default async function createPlugin(
       //       It is here for demo purposes only.
       github: providers.github.create({
         signIn: {
-          resolver: providers.github.resolvers.usernameMatchingUserEntityName(),
+          async resolver({ result: { fullProfile } }, ctx) {
+            const userId = fullProfile.username;
+            if (!userId) {
+              throw new Error(
+                `GitHub user profile does not contain a username`,
+              );
+            }
+
+            const userEntityRef = stringifyEntityRef({
+              kind: 'User',
+              name: userId,
+              namespace: DEFAULT_NAMESPACE,
+            });
+
+            return ctx.issueToken({
+              claims: {
+                sub: userEntityRef,
+                ent: [userEntityRef],
+              },
+            });
+          },
         },
       }),
       gitlab: providers.gitlab.create({
@@ -84,6 +108,34 @@ export default async function createPlugin(
             return ctx.signInWithCatalogUser({
               entityRef: {
                 name: fullProfile.id,
+              },
+            });
+          },
+        },
+      }),
+
+      bitbucketServer: providers.bitbucketServer.create({
+        signIn: {
+          resolver:
+            providers.bitbucketServer.resolvers.emailMatchingUserEntityProfileEmail(),
+        },
+      }),
+
+      // This is an example of how to configure the OAuth2Proxy provider as well
+      // as how to sign a user in without a matching user entity in the catalog.
+      // You can try it out using `<ProxiedSignInPage {...props} provider="myproxy" />`
+      myproxy: providers.oauth2Proxy.create({
+        signIn: {
+          async resolver({ result }, ctx) {
+            const entityRef = stringifyEntityRef({
+              kind: 'user',
+              namespace: DEFAULT_NAMESPACE,
+              name: result.getHeader('x-forwarded-user')!,
+            });
+            return ctx.issueToken({
+              claims: {
+                sub: entityRef,
+                ent: [entityRef],
               },
             });
           },

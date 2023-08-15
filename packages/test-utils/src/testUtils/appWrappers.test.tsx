@@ -20,12 +20,13 @@ import {
   createSubRouteRef,
   errorApiRef,
   useApi,
+  useApp,
   useRouteRef,
 } from '@backstage/core-plugin-api';
 import { withLogCollector } from './logCollector';
 import { render } from '@testing-library/react';
 import React, { useEffect } from 'react';
-import { Route, Routes } from 'react-router';
+import { Route, Routes } from 'react-router-dom';
 import { MockErrorApi } from './apis';
 import { renderInTestApp, wrapInTestApp } from './appWrappers';
 import { TestApiProvider } from './TestApiProvider';
@@ -91,9 +92,11 @@ describe('wrapInTestApp', () => {
     });
 
     expect(error).toEqual([
-      expect.stringMatching(
-        /^Error: Uncaught \[Error: MockErrorApi received unexpected error, Error: NOPE\]/,
-      ),
+      expect.objectContaining({
+        detail: new Error(
+          'MockErrorApi received unexpected error, Error: NOPE',
+        ),
+      }),
       expect.stringMatching(/^The above error occurred in the <A> component:/),
     ]);
   });
@@ -171,5 +174,19 @@ describe('wrapInTestApp', () => {
     expect(root).toBeInTheDocument();
     expect(root.children.length).toBe(1);
     expect(root.children[0].textContent).toBe('foo');
+  });
+
+  it('should support rerenders', async () => {
+    const MyComponent = () => {
+      const app = useApp();
+      const { Progress } = app.getComponents();
+      return <Progress />;
+    };
+
+    const rendered = await renderInTestApp(<MyComponent />);
+    expect(rendered.getByTestId('progress')).toBeInTheDocument();
+
+    rendered.rerender(<MyComponent />);
+    expect(rendered.getByTestId('progress')).toBeInTheDocument();
   });
 });

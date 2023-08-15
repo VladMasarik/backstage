@@ -47,7 +47,7 @@ import {
 import { Box, TabProps } from '@material-ui/core';
 import { Alert } from '@material-ui/lab';
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { EntityContextMenu } from '../EntityContextMenu/EntityContextMenu';
 
 /** @public */
@@ -142,16 +142,20 @@ interface ExtraContextMenuItem {
   onClick: () => void;
 }
 
+type VisibleType = 'visible' | 'hidden' | 'disable';
+
+// NOTE(blam): Intentionally not exported at this point, since it's part of
 // unstable context menu option, eg: disable the unregister entity menu
-interface contextMenuOptions {
-  disableUnregister: boolean;
+interface EntityContextMenuOptions {
+  disableUnregister: boolean | VisibleType;
 }
 
 /** @public */
 export interface EntityLayoutProps {
   UNSTABLE_extraContextMenuItems?: ExtraContextMenuItem[];
-  UNSTABLE_contextMenuOptions?: contextMenuOptions;
+  UNSTABLE_contextMenuOptions?: EntityContextMenuOptions;
   children?: React.ReactNode;
+  NotFoundComponent?: React.ReactNode;
 }
 
 /**
@@ -176,6 +180,7 @@ export const EntityLayout = (props: EntityLayoutProps) => {
     UNSTABLE_extraContextMenuItems,
     UNSTABLE_contextMenuOptions,
     children,
+    NotFoundComponent,
   } = props;
   const { kind, namespace, name } = useRouteRefParams(entityRouteRef);
   const { entity, loading, error } = useAsyncEntity();
@@ -265,13 +270,17 @@ export const EntityLayout = (props: EntityLayoutProps) => {
 
       {!loading && !error && !entity && (
         <Content>
-          <WarningPanel title="Entity not found">
-            There is no {kind} with the requested{' '}
-            <Link to="https://backstage.io/docs/features/software-catalog/references">
-              kind, namespace, and name
-            </Link>
-            .
-          </WarningPanel>
+          {NotFoundComponent ? (
+            NotFoundComponent
+          ) : (
+            <WarningPanel title="Entity not found">
+              There is no {kind} with the requested{' '}
+              <Link to="https://backstage.io/docs/features/software-catalog/references">
+                kind, namespace, and name
+              </Link>
+              .
+            </WarningPanel>
+          )}
         </Content>
       )}
 

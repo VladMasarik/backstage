@@ -13,12 +13,14 @@ import { InfoCardVariants } from '@backstage/core-components';
 // @public (undocumented)
 export const EntityGroupProfileCard: (props: {
   variant?: InfoCardVariants | undefined;
+  showLinks?: boolean | undefined;
 }) => JSX.Element;
 
 // @public (undocumented)
 export const EntityMembersListCard: (props: {
   memberDisplayTitle?: string | undefined;
   pageSize?: number | undefined;
+  showAggregateMembersToggle?: boolean | undefined;
 }) => JSX.Element;
 
 // @public (undocumented)
@@ -27,22 +29,26 @@ export const EntityOwnershipCard: (props: {
   entityFilterKind?: string[] | undefined;
   hideRelationsToggle?: boolean | undefined;
   relationsType?: string | undefined;
+  entityLimit?: number | undefined;
 }) => JSX.Element;
 
 // @public (undocumented)
 export const EntityUserProfileCard: (props: {
   variant?: InfoCardVariants | undefined;
+  showLinks?: boolean | undefined;
 }) => JSX.Element;
 
 // @public (undocumented)
 export const GroupProfileCard: (props: {
   variant?: InfoCardVariants;
+  showLinks?: boolean;
 }) => JSX.Element;
 
 // @public (undocumented)
 export const MembersListCard: (props: {
   memberDisplayTitle?: string;
   pageSize?: number;
+  showAggregateMembersToggle?: boolean;
 }) => JSX.Element;
 
 // @public
@@ -50,6 +56,7 @@ export const MyGroupsSidebarItem: (props: {
   singularTitle: string;
   pluralTitle: string;
   icon: IconComponent;
+  filter?: Record<string, string | symbol | (string | symbol)[]>;
 }) => JSX.Element | null;
 
 // @public (undocumented)
@@ -57,7 +64,8 @@ const orgPlugin: BackstagePlugin<
   {},
   {
     catalogIndex: ExternalRouteRef<undefined, false>;
-  }
+  },
+  {}
 >;
 export { orgPlugin };
 export { orgPlugin as plugin };
@@ -68,10 +76,12 @@ export const OwnershipCard: (props: {
   entityFilterKind?: string[];
   hideRelationsToggle?: boolean;
   relationsType?: string;
+  entityLimit?: number;
 }) => JSX.Element;
 
 // @public (undocumented)
 export const UserProfileCard: (props: {
   variant?: InfoCardVariants;
+  showLinks?: boolean;
 }) => JSX.Element;
 ```

@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 import React from 'react';
-import { Audit, AuditCompleted, LighthouseCategoryId } from '../../api';
+import Typography from '@material-ui/core/Typography';
+import {
+  Audit,
+  AuditCompleted,
+  LighthouseCategoryId,
+} from '@backstage/plugin-lighthouse-common';
 import { useWebsiteForEntity } from '../../hooks/useWebsiteForEntity';
 import AuditStatusIcon from '../AuditStatusIcon';
 import {
+  EmptyState,
   InfoCard,
   InfoCardVariants,
   Progress,
@@ -25,10 +31,11 @@ import {
   StatusOK,
   StatusWarning,
   StructuredMetadataTable,
+  WarningPanel,
 } from '@backstage/core-components';
 
-const LighthouseCategoryScoreStatus = ({ score }: { score: number }) => {
-  const scoreAsPercentage = Math.round(score * 100);
+const LighthouseCategoryScoreStatus = (props: { score: number }) => {
+  const scoreAsPercentage = Math.round(props.score * 100);
   switch (true) {
     case scoreAsPercentage >= 90:
       return (
@@ -52,24 +59,19 @@ const LighthouseCategoryScoreStatus = ({ score }: { score: number }) => {
         </>
       );
     default:
-      return <span>N/A</span>;
+      return <Typography component="span">N/A</Typography>;
   }
 };
 
-const LighthouseAuditStatus = ({ audit }: { audit: Audit }) => (
+const LighthouseAuditStatus = (props: { audit: Audit }) => (
   <>
-    <AuditStatusIcon audit={audit} />
-    {audit.status.toLocaleUpperCase('en-US')}
+    <AuditStatusIcon audit={props.audit} />
+    {props.audit.status.toLocaleUpperCase('en-US')}
   </>
 );
 
-const LighthouseAuditSummary = ({
-  audit,
-  dense = false,
-}: {
-  audit: Audit;
-  dense?: boolean;
-}) => {
+const LighthouseAuditSummary = (props: { audit: Audit; dense?: boolean }) => {
+  const { audit, dense = false } = props;
   const { url } = audit;
   const flattenedCategoryData: Record<string, React.ReactNode> = {};
   if (audit.status === 'COMPLETED') {
@@ -92,13 +94,12 @@ const LighthouseAuditSummary = ({
   return <StructuredMetadataTable metadata={tableData} dense={dense} />;
 };
 
-export const LastLighthouseAuditCard = ({
-  dense = false,
-  variant,
-}: {
+/** @public */
+export const LastLighthouseAuditCard = (props: {
   dense?: boolean;
   variant?: InfoCardVariants;
 }) => {
+  const { dense = false, variant } = props;
   const { value: website, loading, error } = useWebsiteForEntity();
 
   let content;
@@ -106,7 +107,14 @@ export const LastLighthouseAuditCard = ({
     content = <Progress />;
   }
   if (error) {
-    content = null;
+    // We only want to display this warning panel when its caused by an error other than no audits being found for the website
+    content = error.message.includes('no audited website found for url') ? (
+      <EmptyState title="No Audits Found" missing="data" />
+    ) : (
+      <WarningPanel severity="error" title="Could not load audit list.">
+        {error.message}
+      </WarningPanel>
+    );
   }
   if (website) {
     content = (

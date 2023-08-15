@@ -20,6 +20,7 @@ import {
   createPlugin,
   createRouteRef,
   discoveryApiRef,
+  fetchApiRef,
   createRoutableExtension,
 } from '@backstage/core-plugin-api';
 
@@ -27,13 +28,18 @@ export const rootRouteRef = createRouteRef({
   id: 'newrelic',
 });
 
+/** @public */
 export const newRelicPlugin = createPlugin({
   id: 'newrelic',
   apis: [
     createApiFactory({
       api: newRelicApiRef,
-      deps: { discoveryApi: discoveryApiRef },
-      factory: ({ discoveryApi }) => new NewRelicClient({ discoveryApi }),
+      deps: {
+        discoveryApi: discoveryApiRef,
+        fetchApi: fetchApiRef,
+      },
+      factory: ({ discoveryApi, fetchApi }) =>
+        new NewRelicClient({ discoveryApi, fetchApi }),
     }),
   ],
   routes: {
@@ -41,6 +47,7 @@ export const newRelicPlugin = createPlugin({
   },
 });
 
+/** @public */
 export const NewRelicPage = newRelicPlugin.provide(
   createRoutableExtension({
     name: 'NewRelicPage',

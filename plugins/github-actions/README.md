@@ -11,7 +11,7 @@ TBD
 ### Generic Requirements
 
 1. Provide OAuth credentials:
-   1. [Create an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) in the GitHub organization with the callback URL set to `http://localhost:7007/api/auth/github`.
+   1. [Create an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) in the GitHub organization with the callback URL set to `http://localhost:7007/api/auth/github/handler/frame`.
    2. Take the Client ID and Client Secret from the newly created app's settings page and put them into `AUTH_GITHUB_CLIENT_ID` and `AUTH_GITHUB_CLIENT_SECRET` environment variables.
 2. Annotate your component with a correct GitHub Actions repository and owner:
 
@@ -63,6 +63,22 @@ const serviceEntityPage = (
 
 3. Run the app with `yarn start` and the backend with `yarn start-backend`.
    Then navigate to `/github-actions/` under any entity.
+
+### Self-hosted / Enterprise GitHub
+
+The plugin will try to use `backstage.io/source-location` or `backstage.io/managed-by-location`
+annotations to figure out the location of the source code.
+
+1. Add the `host` and `apiBaseUrl` to your `app-config.yaml`
+
+```yaml
+# app-config.yaml
+
+integrations:
+  github:
+    - host: 'your-github-host.com'
+      apiBaseUrl: 'https://api.your-github-host.com'
+```
 
 ## Features
 

@@ -13,27 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import { wrapInTestApp } from '@backstage/test-utils';
 import {
+  DefaultResultListItem,
+  MockSearchApi,
+  searchApiRef,
+  SearchBar,
+  SearchContextProvider,
+  SearchResult,
+  SearchResultPager,
+} from '@backstage/plugin-search-react';
+import { TestApiProvider, wrapInTestApp } from '@backstage/test-utils';
+import {
+  Box,
   Button,
   DialogActions,
   DialogContent,
   DialogTitle,
   Grid,
+  IconButton,
   List,
-  Paper,
 } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import React, { ComponentType } from 'react';
+import CloseIcon from '@material-ui/icons/Close';
+import React, { ComponentType, PropsWithChildren } from 'react';
 import { rootRouteRef } from '../../plugin';
-import { DefaultResultListItem } from '../DefaultResultListItem';
-import { SearchBar } from '../SearchBar';
-import { SearchApiProviderForStorybook } from '@backstage/plugin-search-react';
-import { SearchModal } from './SearchModal';
-import { SearchResult } from '../SearchResult';
-import { SearchResultPager } from '../SearchResultPager';
 import { SearchType } from '../SearchType';
+import { SearchModal } from './SearchModal';
 import { useSearchModal } from './useSearchModal';
 
 const mockResults = {
@@ -69,11 +74,16 @@ export default {
   title: 'Plugins/Search/SearchModal',
   component: SearchModal,
   decorators: [
-    (Story: ComponentType<{}>) =>
+    (Story: ComponentType<PropsWithChildren<{}>>) =>
       wrapInTestApp(
-        <SearchApiProviderForStorybook mockedResults={mockResults}>
-          <Story />
-        </SearchApiProviderForStorybook>,
+        <TestApiProvider
+          apis={[[searchApiRef, new MockSearchApi(mockResults)]]}
+        >
+          <SearchContextProvider>
+            <Story />
+          </SearchContextProvider>
+        </TestApiProvider>,
+
         { mountedRoutes: { '/search': rootRouteRef } },
       ),
   ],
@@ -93,10 +103,10 @@ export const Default = () => {
 };
 
 const useStyles = makeStyles(theme => ({
-  container: {
-    borderRadius: 30,
+  titleContainer: {
     display: 'flex',
-    height: '2.4em',
+    alignItems: 'center',
+    gap: theme.spacing(1),
   },
   input: {
     flex: 1,
@@ -117,9 +127,13 @@ export const CustomModal = () => {
         {() => (
           <>
             <DialogTitle>
-              <Paper className={classes.container}>
+              <Box className={classes.titleContainer}>
                 <SearchBar className={classes.input} />
-              </Paper>
+
+                <IconButton aria-label="close" onClick={toggleModal}>
+                  <CloseIcon />
+                </IconButton>
+              </Box>
             </DialogTitle>
             <DialogContent>
               <Grid container direction="column">

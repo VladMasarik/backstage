@@ -59,34 +59,83 @@ export interface Config {
 
     /**
      * The available auth-provider options and attributes
+     * @additionalProperties true
      */
     providers?: {
+      /** @visibility frontend */
       google?: {
-        [authEnv: string]: { [key: string]: string };
+        [authEnv: string]: {
+          clientId: string;
+          /**
+           * @visibility secret
+           */
+          clientSecret: string;
+          callbackUrl?: string;
+        };
       };
+      /** @visibility frontend */
       github?: {
-        [authEnv: string]: { [key: string]: string };
+        [authEnv: string]: {
+          clientId: string;
+          /**
+           * @visibility secret
+           */
+          clientSecret: string;
+          callbackUrl?: string;
+          enterpriseInstanceUrl?: string;
+        };
       };
+      /** @visibility frontend */
       gitlab?: {
-        [authEnv: string]: { [key: string]: string };
+        [authEnv: string]: {
+          clientId: string;
+          /**
+           * @visibility secret
+           */
+          clientSecret: string;
+          audience?: string;
+          callbackUrl?: string;
+        };
       };
+      /** @visibility frontend */
       saml?: {
         entryPoint: string;
         logoutUrl?: string;
         issuer: string;
+        /**
+         * @visibility secret
+         */
         cert: string;
         audience?: string;
+        /**
+         * @visibility secret
+         */
         privateKey?: string;
         authnContext?: string[];
         identifierFormat?: string;
+        /**
+         * @visibility secret
+         */
         decryptionPvk?: string;
         signatureAlgorithm?: 'sha256' | 'sha512';
         digestAlgorithm?: string;
         acceptedClockSkewMs?: number;
       };
+      /** @visibility frontend */
       okta?: {
-        [authEnv: string]: { [key: string]: string };
+        [authEnv: string]: {
+          clientId: string;
+          /**
+           * @visibility secret
+           */
+          clientSecret: string;
+          audience: string;
+          authServerId?: string;
+          idp?: string;
+          callbackUrl?: string;
+        };
       };
+      /** @visibility frontend */
       oauth2?: {
         [authEnv: string]: {
           clientId: string;
@@ -100,21 +149,69 @@ export interface Config {
           disableRefresh?: boolean;
         };
       };
+      /** @visibility frontend */
       oidc?: {
-        [authEnv: string]: { [key: string]: string };
+        [authEnv: string]: {
+          clientId: string;
+          /**
+           * @visibility secret
+           */
+          clientSecret: string;
+          callbackUrl?: string;
+          metadataUrl: string;
+          tokenEndpointAuthMethod?: string;
+          tokenSignedResponseAlg?: string;
+          scope?: string;
+          prompt?: string;
+        };
       };
+      /** @visibility frontend */
       auth0?: {
-        [authEnv: string]: { [key: string]: string };
+        [authEnv: string]: {
+          clientId: string;
+          /**
+           * @visibility secret
+           */
+          clientSecret: string;
+          domain: string;
+          callbackUrl?: string;
+          audience?: string;
+          connection?: string;
+          connectionScope?: string;
+        };
       };
+      /** @visibility frontend */
       microsoft?: {
-        [authEnv: string]: { [key: string]: string };
+        [authEnv: string]: {
+          clientId: string;
+          /**
+           * @visibility secret
+           */
+          clientSecret: string;
+          tenantId: string;
+          callbackUrl?: string;
+        };
       };
+      /** @visibility frontend */
       onelogin?: {
-        [authEnv: string]: { [key: string]: string };
+        [authEnv: string]: {
+          clientId: string;
+          /**
+           * @visibility secret
+           */
+          clientSecret: string;
+          issuer: string;
+          callbackUrl?: string;
+        };
       };
+      /** @visibility frontend */
       awsalb?: {
-        issuer?: string;
+        iss?: string;
         region: string;
+      };
+      /** @visibility frontend */
+      cfaccess?: {
+        teamName: string;
       };
     };
   };

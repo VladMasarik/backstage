@@ -15,29 +15,15 @@
  */
 
 import { CompoundEntityRef } from '@backstage/catalog-model';
+import { ResultHighlight } from '@backstage/plugin-search-common';
 import {
+  SearchAutocomplete,
   SearchContextProvider,
   useSearch,
 } from '@backstage/plugin-search-react';
-import {
-  makeStyles,
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  TextField,
-} from '@material-ui/core';
-import SearchIcon from '@material-ui/icons/Search';
-import Autocomplete from '@material-ui/lab/Autocomplete';
-import React, { ChangeEvent, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
-import useDebounce from 'react-use/lib/useDebounce';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TechDocsSearchResultListItem } from './TechDocsSearchResultListItem';
-
-const useStyles = makeStyles({
-  root: {
-    width: '100%',
-  },
-});
 
 /**
  * Props for {@link TechDocsSearch}
@@ -46,6 +32,7 @@ const useStyles = makeStyles({
  */
 export type TechDocsSearchProps = {
   entityId: CompoundEntityRef;
+  entityTitle?: string;
   debounceTime?: number;
 };
 
@@ -61,19 +48,23 @@ type TechDocsDoc = {
 type TechDocsSearchResult = {
   type: string;
   document: TechDocsDoc;
+  highlight?: ResultHighlight;
+};
+
+const isTechDocsSearchResult = (
+  option: any,
+): option is TechDocsSearchResult => {
+  return option?.document;
 };
 
 const TechDocsSearchBar = (props: TechDocsSearchProps) => {
-  const { entityId, debounceTime = 150 } = props;
+  const { entityId, entityTitle, debounceTime = 150 } = props;
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const {
-    term,
-    setTerm,
     setFilters,
     result: { loading, value: searchVal },
   } = useSearch();
-  const classes = useStyles();
   const [options, setOptions] = useState<any[]>([]);
   useEffect(() => {
     let mounted = true;
@@ -90,10 +81,6 @@ const TechDocsSearchBar = (props: TechDocsSearchProps) => {
     };
   }, [loading, searchVal]);
 
-  const [value, setValue] = useState<string>(term);
-
-  useDebounce(() => setTerm(value), debounceTime, [value]);
-
   // Update the filter context when the entityId changes, e.g. when the search
   // bar continues to be rendered, navigating between different TechDocs sites.
   const { kind, name, namespace } = entityId;
@@ -108,23 +95,18 @@ const TechDocsSearchBar = (props: TechDocsSearchProps) => {
     });
   }, [kind, namespace, name, setFilters]);
 
-  const handleQuery = (e: ChangeEvent<HTMLInputElement>) => {
-    if (!open) {
-      setOpen(true);
-    }
-    setValue(e.target.value);
-  };
-
-  const handleSelection = (_: any, selection: TechDocsSearchResult | null) => {
-    if (selection?.document) {
+  const handleSelection = (
+    _: any,
+    selection: TechDocsSearchResult | string | null,
+  ) => {
+    if (isTechDocsSearchResult(selection)) {
       const { location } = selection.document;
       navigate(location);
     }
   };
 
   return (
-    <Autocomplete
-      classes={{ root: classes.root }}
+    <SearchAutocomplete
       data-testid="techdocs-search-bar"
       size="small"
       open={open}
@@ -143,45 +125,20 @@ const TechDocsSearchBar = (props: TechDocsSearchProps) => {
       noOptionsText="No results found"
       value={null}
       options={options}
-      renderOption={({ document }) => (
+      renderOption={({ document, highlight }) => (
         <TechDocsSearchResultListItem
           result={document}
           lineClamp={3}
           asListItem={false}
           asLink={false}
           title={document.title}
+          highlight={highlight}
         />
       )}
       loading={loading}
-      renderInput={params => (
-        <TextField
-          {...params}
-          data-testid="techdocs-search-bar-input"
-          variant="outlined"
-          fullWidth
-          placeholder={`Search ${entityId.name} docs`}
-          value={value}
-          onChange={handleQuery}
-          InputProps={{
-            ...params.InputProps,
-            startAdornment: (
-              <InputAdornment position="start">
-                <IconButton aria-label="Query" disabled>
-                  <SearchIcon />
-                </IconButton>
-              </InputAdornment>
-            ),
-            endAdornment: (
-              <React.Fragment>
-                {loading ? (
-                  <CircularProgress color="inherit" size={20} />
-                ) : null}
-                {params.InputProps.endAdornment}
-              </React.Fragment>
-            ),
-          }}
-        />
-      )}
+      inputDebounceTime={debounceTime}
+      inputPlaceholder={`Search ${entityTitle || entityId.name} docs`}
+      freeSolo={false}
     />
   );
 };

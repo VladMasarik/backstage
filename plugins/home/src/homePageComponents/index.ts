@@ -14,5 +14,6 @@
  * limitations under the License.
  */
 
-export * from './CompanyLogo';
-export * from './Toolkit';
+export type { ToolkitContentProps, Tool } from './Toolkit';
+export type { ClockConfig } from './HeaderWorldClock';
+export type { WelcomeTitleLanguageProps } from './WelcomeTitle';

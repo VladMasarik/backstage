@@ -54,7 +54,7 @@ begun work on various aspects of all three phases. Looking at the
 [milestones for active issues](https://github.com/backstage/backstage/milestones)
 will also give you a sense of our progress.
 
-### My company doesn't have thousands of developers or services. Is Backstage overkill?
+### My company doesn't have thousands of developers or services. Is using Backstage excessive for our needs?
 
 Not at all! A core reason to adopt Backstage is to standardize how software is
 built at your company. It's easier to decide on those standards as a small
@@ -64,12 +64,20 @@ valuable as you grow.
 
 ### Our company has a strong design language system/brand that we want to incorporate. Does Backstage support this?
 
-Yes! The Backstage UI is built using Material-UI. With the theming capabilities
-of Material-UI, you are able to adapt the interface to your brand guidelines.
+Yes! The Backstage UI is built using Material UI. With the theming capabilities
+of Material UI, you are able to adapt the interface to your brand guidelines.
 
 ## Technical FAQ
 
-### Why Material-UI?
+### What technology does Backstage use?
+
+Backstage is a large scale [TypeScript](https://www.typescriptlang.org/)
+application whose frontend parts use [React](https://react.dev/) and
+[Material UI](https://material-ui.com/), while the backend parts use
+[Node.js](https://nodejs.org/) and the [Express](https://expressjs.com/)
+framework.
+
+### Why Material UI?
 
 The short answer is that's what we've been using in Backstage internally.
 
@@ -80,14 +88,8 @@ knew that we would like to use.
 
 It strikes a good balance between power, customizability, and ease of use. A
 core focus of Backstage is to make plugin developers productive with as few
-hurdles as possible. Material-UI lets plugin makers get going easily with both
+hurdles as possible. Material UI lets plugin makers get going easily with both
 well-known tech and a large flora of components.
-
-### What technology does Backstage use?
-
-The codebase is a large-scale React application that uses TypeScript. For
-[Phase 2](https://github.com/backstage/backstage#project-roadmap), we plan to
-use Node.js and GraphQL.
 
 ### What is the end-to-end user flow? The happy path story.
 
@@ -176,7 +178,7 @@ By far, our most-used plugin is our TechDocs plugin, which we use for creating
 technical documentation. Our philosophy at Spotify is to treat "docs like code",
 where you write documentation using the same workflow as you write your code.
 This makes it easier to create, find, and update documentation.
-[TechDocs is now open source.](https://backstage.io/docs/features/techdocs/techdocs-overview)
+[TechDocs is now open source.](https://backstage.io/docs/features/techdocs/)
 (See also:
 "[Will Spotify's internal plugins be open sourced, too?](#will-spotifys-internal-plugins-be-open-sourced-too)"
 above)
@@ -223,8 +225,7 @@ For more information, see our
 
 No, this is not a service offering. We build the piece of software, and someone
 in your infrastructure team is responsible for
-[deploying](https://backstage.io/docs/getting-started/deployment-k8s) and
-maintaining it.
+[deploying](https://backstage.io/docs/deployment) and maintaining it.
 
 ### How secure is Backstage?
 
@@ -232,7 +233,7 @@ We take security seriously. When it comes to packages and code we scan our
 repositories periodically and update our packages to the latest versions. When
 it comes to deployment of Backstage within an organisation it depends on the
 deployment and security setup in your organisation. Reach out to us on
-[Discord](https://discord.gg/MUpMjP2) if you have specific queries.
+[Discord](https://discord.gg/backstage-687207715902193673) if you have specific queries.
 
 Please report sensitive security issues via Spotify's
 [bug-bounty program](https://hackerone.com/spotify) rather than GitHub.

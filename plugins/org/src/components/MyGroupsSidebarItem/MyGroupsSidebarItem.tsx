@@ -16,6 +16,10 @@
 
 import React from 'react';
 import {
+  DEFAULT_NAMESPACE,
+  stringifyEntityRef,
+} from '@backstage/catalog-model';
+import {
   SidebarItem,
   SidebarSubmenu,
   SidebarSubmenuItem,
@@ -43,8 +47,9 @@ export const MyGroupsSidebarItem = (props: {
   singularTitle: string;
   pluralTitle: string;
   icon: IconComponent;
+  filter?: Record<string, string | symbol | (string | symbol)[]>;
 }) => {
-  const { singularTitle, pluralTitle, icon } = props;
+  const { singularTitle, pluralTitle, icon, filter } = props;
 
   const identityApi = useApi(identityApiRef);
   const catalogApi: CatalogApi = useApi(catalogApiRef);
@@ -54,7 +59,13 @@ export const MyGroupsSidebarItem = (props: {
     const profile = await identityApi.getBackstageIdentity();
 
     const response = await catalogApi.getEntities({
-      filter: [{ kind: 'group', 'relations.hasMember': profile.userEntityRef }],
+      filter: [
+        {
+          kind: 'group',
+          'relations.hasMember': profile.userEntityRef,
+          ...(filter ?? {}),
+        },
+      ],
       fields: ['metadata', 'kind'],
     });
 
@@ -80,15 +91,20 @@ export const MyGroupsSidebarItem = (props: {
 
   // Member of more than one group
   return (
-    <SidebarItem icon={icon} to="catalog" text={pluralTitle}>
+    <SidebarItem icon={icon} text={pluralTitle}>
       <SidebarSubmenu title={pluralTitle}>
         {groups?.map(function groupsMap(group) {
           return (
             <SidebarSubmenuItem
               title={group.metadata.title || group.metadata.name}
+              subtitle={
+                group.metadata.namespace !== DEFAULT_NAMESPACE
+                  ? group.metadata.namespace
+                  : undefined
+              }
               to={catalogEntityRoute(getCompoundEntityRef(group))}
               icon={icon}
-              key={group.metadata.name}
+              key={stringifyEntityRef(group)}
             />
           );
         })}

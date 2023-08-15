@@ -7,8 +7,10 @@
 
 import { ApiHolder } from '@backstage/core-plugin-api';
 import { BackstagePlugin } from '@backstage/core-plugin-api';
+import { ComponentEntity } from '@backstage/catalog-model';
 import { CompoundEntityRef } from '@backstage/catalog-model';
 import { Entity } from '@backstage/catalog-model';
+import { EntityOwnerPickerProps } from '@backstage/plugin-catalog-react';
 import { ExternalRouteRef } from '@backstage/core-plugin-api';
 import { IconComponent } from '@backstage/core-plugin-api';
 import { IndexableDocument } from '@backstage/plugin-search-common';
@@ -17,11 +19,15 @@ import { Observable } from '@backstage/types';
 import { Overrides } from '@material-ui/core/styles/overrides';
 import { default as React_2 } from 'react';
 import { ReactNode } from 'react';
+import { ResourceEntity } from '@backstage/catalog-model';
+import { ResultHighlight } from '@backstage/plugin-search-common';
 import { RouteRef } from '@backstage/core-plugin-api';
+import { SearchResultListItemExtensionProps } from '@backstage/plugin-search-react';
 import { StarredEntitiesApi } from '@backstage/plugin-catalog-react';
 import { StorageApi } from '@backstage/core-plugin-api';
 import { StyleRules } from '@material-ui/core/styles/withStyles';
 import { TableColumn } from '@backstage/core-components';
+import { TableOptions } from '@backstage/core-components';
 import { TableProps } from '@backstage/core-components';
 import { TabProps } from '@material-ui/core';
 import { UserListFilterKind } from '@backstage/plugin-catalog-react';
@@ -64,12 +70,15 @@ export type BackstageOverrides = Overrides & {
 };
 
 // @public (undocumented)
+export type Breakpoint = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+// @public (undocumented)
 export const CatalogEntityPage: () => JSX.Element;
 
 // @public (undocumented)
 export const CatalogIndexPage: (props: DefaultCatalogPageProps) => JSX.Element;
 
-// @public (undocumented)
+// @public @deprecated (undocumented)
 export function CatalogKindHeader(props: CatalogKindHeaderProps): JSX.Element;
 
 // @public
@@ -98,18 +107,32 @@ export const catalogPlugin: BackstagePlugin<
       },
       true
     >;
-  }
+    createFromTemplate: ExternalRouteRef<
+      {
+        namespace: string;
+        templateName: string;
+      },
+      true
+    >;
+  },
+  CatalogInputPluginOptions
 >;
 
 // @public (undocumented)
-export function CatalogSearchResultListItem(
-  props: CatalogSearchResultListItemProps,
-): JSX.Element;
+export const CatalogSearchResultListItem: (
+  props: SearchResultListItemExtensionProps<CatalogSearchResultListItemProps>,
+) => JSX.Element | null;
 
 // @public
 export interface CatalogSearchResultListItemProps {
   // (undocumented)
-  result: IndexableDocument;
+  highlight?: ResultHighlight;
+  // (undocumented)
+  icon?: ReactNode | ((result: IndexableDocument) => ReactNode);
+  // (undocumented)
+  rank?: number;
+  // (undocumented)
+  result?: IndexableDocument;
 }
 
 // @public (undocumented)
@@ -125,10 +148,28 @@ export const CatalogTable: {
     ): TableColumn<CatalogTableRow>;
     createSystemColumn(): TableColumn<CatalogTableRow>;
     createOwnerColumn(): TableColumn<CatalogTableRow>;
+    createSpecTargetsColumn(): TableColumn<CatalogTableRow>;
     createSpecTypeColumn(): TableColumn<CatalogTableRow>;
     createSpecLifecycleColumn(): TableColumn<CatalogTableRow>;
     createMetadataDescriptionColumn(): TableColumn<CatalogTableRow>;
     createTagsColumn(): TableColumn<CatalogTableRow>;
+    createTitleColumn(
+      options?:
+        | {
+            hidden?: boolean | undefined;
+          }
+        | undefined,
+    ): TableColumn<CatalogTableRow>;
+    createLabelColumn(
+      key: string,
+      options?:
+        | {
+            title?: string | undefined;
+            defaultValue?: string | undefined;
+          }
+        | undefined,
+    ): TableColumn<CatalogTableRow>;
+    createNamespaceColumn(): TableColumn<CatalogTableRow>;
   }>;
 };
 
@@ -138,6 +179,10 @@ export interface CatalogTableProps {
   actions?: TableProps<CatalogTableRow>['actions'];
   // (undocumented)
   columns?: TableColumn<CatalogTableRow>[];
+  // (undocumented)
+  emptyContent?: ReactNode;
+  // (undocumented)
+  subtitle?: string;
   // (undocumented)
   tableOptions?: TableProps<CatalogTableRow>['options'];
 }
@@ -156,6 +201,9 @@ export interface CatalogTableRow {
   };
 }
 
+// @public (undocumented)
+export type ColumnBreakpoints = Record<Breakpoint, number>;
+
 // @public
 export interface DefaultCatalogPageProps {
   // (undocumented)
@@ -163,9 +211,13 @@ export interface DefaultCatalogPageProps {
   // (undocumented)
   columns?: TableColumn<CatalogTableRow>[];
   // (undocumented)
+  emptyContent?: ReactNode;
+  // (undocumented)
   initialKind?: string;
   // (undocumented)
   initiallySelectedFilter?: UserListFilterKind;
+  // (undocumented)
+  ownerPickerMode?: EntityOwnerPickerProps['mode'];
   // (undocumented)
   tableOptions?: TableProps<CatalogTableRow>['options'];
 }
@@ -184,25 +236,38 @@ export interface DependencyOfComponentsCardProps {
   // (undocumented)
   title?: string;
   // (undocumented)
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
 }
 
 // @public (undocumented)
 export interface DependsOnComponentsCardProps {
   // (undocumented)
+  columns?: TableColumn<ComponentEntity>[];
+  // (undocumented)
+  tableOptions?: TableOptions;
+  // (undocumented)
   title?: string;
   // (undocumented)
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
 }
 
 // @public (undocumented)
 export interface DependsOnResourcesCardProps {
   // (undocumented)
-  variant?: 'gridItem';
+  columns?: TableColumn<ResourceEntity>[];
+  // (undocumented)
+  tableOptions?: TableOptions;
+  // (undocumented)
+  title?: string;
+  // (undocumented)
+  variant?: InfoCardVariants;
 }
 
 // @public (undocumented)
 export const EntityAboutCard: (props: AboutCardProps) => JSX.Element;
+
+// @public (undocumented)
+export type EntityContextMenuClassKey = 'button';
 
 // @public (undocumented)
 export const EntityDependencyOfComponentsCard: (
@@ -237,6 +302,17 @@ export const EntityHasSubcomponentsCard: (
 // @public (undocumented)
 export const EntityHasSystemsCard: (props: HasSystemsCardProps) => JSX.Element;
 
+// @public (undocumented)
+export const EntityLabelsCard: (props: EntityLabelsCardProps) => JSX.Element;
+
+// @public (undocumented)
+export interface EntityLabelsCardProps {
+  // (undocumented)
+  title?: string;
+  // (undocumented)
+  variant?: InfoCardVariants;
+}
+
 // @public
 export const EntityLayout: {
   (props: EntityLayoutProps): JSX.Element;
@@ -247,10 +323,12 @@ export const EntityLayout: {
 export interface EntityLayoutProps {
   // (undocumented)
   children?: React_2.ReactNode;
-  // Warning: (ae-forgotten-export) The symbol "contextMenuOptions" needs to be exported by the entry point index.d.ts
+  // (undocumented)
+  NotFoundComponent?: React_2.ReactNode;
+  // Warning: (ae-forgotten-export) The symbol "EntityContextMenuOptions" needs to be exported by the entry point index.d.ts
   //
   // (undocumented)
-  UNSTABLE_contextMenuOptions?: contextMenuOptions;
+  UNSTABLE_contextMenuOptions?: EntityContextMenuOptions;
   // Warning: (ae-forgotten-export) The symbol "ExtraContextMenuItem" needs to be exported by the entry point index.d.ts
   //
   // (undocumented)
@@ -271,19 +349,15 @@ export type EntityLayoutRouteProps = {
   >;
 };
 
-// Warning: (ae-forgotten-export) The symbol "EntityLinksCard" needs to be exported by the entry point index.d.ts
-//
 // @public (undocumented)
-export const EntityLinksCard: EntityLinksCard_2;
+export const EntityLinksCard: (props: EntityLinksCardProps) => JSX.Element;
 
 // @public (undocumented)
 export interface EntityLinksCardProps {
-  // Warning: (ae-forgotten-export) The symbol "ColumnBreakpoints" needs to be exported by the entry point index.d.ts
-  //
   // (undocumented)
   cols?: ColumnBreakpoints | number;
   // (undocumented)
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
 }
 
 // @public (undocumented)
@@ -297,12 +371,23 @@ export const EntityListContainer: (props: {
 // @public
 export function EntityOrphanWarning(): JSX.Element;
 
+// @public (undocumented)
+export interface EntityPredicates {
+  // (undocumented)
+  kind?: string | string[];
+  // (undocumented)
+  type?: string | string[];
+}
+
 // @public
 export function EntityProcessingErrorsPanel(): JSX.Element | null;
 
+// @public
+export function EntityRelationWarning(): JSX.Element | null;
+
 // @public (undocumented)
 export const EntitySwitch: {
-  (props: EntitySwitchProps): JSX.Element | null;
+  (props: EntitySwitchProps): JSX.Element;
   Case: (_props: EntitySwitchCaseProps) => null;
 };
 
@@ -323,10 +408,27 @@ export interface EntitySwitchCaseProps {
 export interface EntitySwitchProps {
   // (undocumented)
   children: ReactNode;
+  // (undocumented)
+  renderMultipleMatches?: 'first' | 'all';
 }
 
 // @public @deprecated (undocumented)
-export const FilterContainer: (props: { children: ReactNode }) => JSX.Element;
+export const FilterContainer: (props: {
+  children: ReactNode;
+  options?:
+    | {
+        drawerBreakpoint?:
+          | number
+          | 'xs'
+          | 'sm'
+          | 'md'
+          | 'lg'
+          | 'xl'
+          | undefined;
+        drawerAnchor?: 'left' | 'top' | 'bottom' | 'right' | undefined;
+      }
+    | undefined;
+}) => JSX.Element;
 
 // @public @deprecated (undocumented)
 export const FilteredEntityLayout: (props: {
@@ -344,43 +446,71 @@ export function hasCatalogProcessingErrors(
 // @public (undocumented)
 export interface HasComponentsCardProps {
   // (undocumented)
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
 }
+
+// @public
+export function hasLabels(entity: Entity): boolean;
+
+// @public
+export function hasRelationWarnings(
+  entity: Entity,
+  context: {
+    apis: ApiHolder;
+  },
+): Promise<boolean>;
 
 // @public (undocumented)
 export interface HasResourcesCardProps {
   // (undocumented)
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
 }
 
 // @public (undocumented)
 export interface HasSubcomponentsCardProps {
   // (undocumented)
-  variant?: 'gridItem';
+  tableOptions?: TableOptions;
+  // (undocumented)
+  variant?: InfoCardVariants;
 }
 
 // @public (undocumented)
 export interface HasSystemsCardProps {
   // (undocumented)
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
 }
 
 // @public
-export function isComponentType(type: string): (entity: Entity) => boolean;
+export function isComponentType(
+  types: string | string[],
+): (entity: Entity) => boolean;
 
 // @public
-export function isKind(kind: string): (entity: Entity) => boolean;
+export function isEntityWith(
+  predicate: EntityPredicates,
+): (entity: Entity) => boolean;
 
 // @public
-export function isNamespace(namespace: string): (entity: Entity) => boolean;
+export function isKind(kinds: string | string[]): (entity: Entity) => boolean;
+
+// @public
+export function isNamespace(
+  namespaces: string | string[],
+): (entity: Entity) => boolean;
 
 // @public
 export function isOrphan(entity: Entity): boolean;
+
+// @public
+export function isResourceType(
+  types: string | string[],
+): (entity: Entity) => boolean;
 
 // @public (undocumented)
 export type PluginCatalogComponentsNameToClassKey = {
   PluginCatalogEntityLinksEmptyState: EntityLinksEmptyStateClassKey;
   PluginCatalogSystemDiagramCard: SystemDiagramCardClassKey;
+  PluginCatalogEntityContextMenu: EntityContextMenuClassKey;
 };
 
 // @public (undocumented)
@@ -390,7 +520,7 @@ export const RelatedEntitiesCard: <T extends Entity>(
 
 // @public (undocumented)
 export type RelatedEntitiesCardProps<T extends Entity> = {
-  variant?: 'gridItem';
+  variant?: InfoCardVariants;
   title: string;
   columns: TableColumn<T>[];
   entityKind?: string;
@@ -398,6 +528,7 @@ export type RelatedEntitiesCardProps<T extends Entity> = {
   emptyMessage: string;
   emptyHelpLink: string;
   asRenderableEntities: (entities: Entity[]) => T[];
+  tableOptions?: TableOptions;
 };
 
 // @public (undocumented)

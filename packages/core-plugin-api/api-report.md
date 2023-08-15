@@ -12,6 +12,7 @@ import { IconComponent as IconComponent_2 } from '@backstage/core-plugin-api';
 import { IdentityApi as IdentityApi_2 } from '@backstage/core-plugin-api';
 import { JsonValue } from '@backstage/types';
 import { Observable } from '@backstage/types';
+import { PropsWithChildren } from 'react';
 import { default as React_2 } from 'react';
 import { ReactElement } from 'react';
 import { ReactNode } from 'react';
@@ -29,28 +30,29 @@ export const alertApiRef: ApiRef<AlertApi>;
 export type AlertMessage = {
   message: string;
   severity?: 'success' | 'info' | 'warning' | 'error';
+  display?: 'permanent' | 'transient';
 };
 
-// @alpha
+// @public
 export type AnalyticsApi = {
   captureEvent(event: AnalyticsEvent): void;
 };
 
-// @alpha
+// @public
 export const analyticsApiRef: ApiRef<AnalyticsApi>;
 
-// @alpha
+// @public
 export const AnalyticsContext: (options: {
   attributes: Partial<AnalyticsContextValue>;
   children: ReactNode;
 }) => JSX.Element;
 
-// @alpha
+// @public
 export type AnalyticsContextValue = CommonAnalyticsContext & {
   [param in string]: string | boolean | number | undefined;
 };
 
-// @alpha
+// @public
 export type AnalyticsEvent = {
   action: string;
   subject: string;
@@ -59,12 +61,12 @@ export type AnalyticsEvent = {
   context: AnalyticsContextValue;
 };
 
-// @alpha
+// @public
 export type AnalyticsEventAttributes = {
   [attribute in string]: string | boolean | number;
 };
 
-// @alpha
+// @public
 export type AnalyticsTracker = {
   captureEvent: (
     action: string,
@@ -136,19 +138,24 @@ export type ApiRefConfig = {
 
 // @public
 export type AppComponents = {
-  NotFoundErrorPage: ComponentType<{}>;
+  NotFoundErrorPage: ComponentType<PropsWithChildren<{}>>;
   BootErrorPage: ComponentType<BootErrorPageProps>;
-  Progress: ComponentType<{}>;
-  Router: ComponentType<{}>;
+  Progress: ComponentType<PropsWithChildren<{}>>;
+  Router: ComponentType<
+    PropsWithChildren<{
+      basename?: string;
+    }>
+  >;
   ErrorBoundaryFallback: ComponentType<ErrorBoundaryFallbackProps>;
-  ThemeProvider?: ComponentType<{}>;
+  ThemeProvider?: ComponentType<PropsWithChildren<{}>>;
   SignInPage?: ComponentType<SignInPageProps>;
 };
 
 // @public
 export type AppContext = {
-  getPlugins(): BackstagePlugin_2<any, any>[];
+  getPlugins(): BackstagePlugin_2[];
   getSystemIcon(key: string): IconComponent_2 | undefined;
+  getSystemIcons(): Record<string, IconComponent_2>;
   getComponents(): AppComponents;
 };
 
@@ -172,7 +179,7 @@ export type AppThemeApi = {
 // @public
 export const appThemeApiRef: ApiRef<AppThemeApi>;
 
-// @alpha
+// @public
 export const atlassianAuthApiRef: ApiRef<
   OAuthApi & ProfileInfoApi & BackstageIdentityApi & SessionApi
 >;
@@ -214,6 +221,7 @@ export type BackstageIdentityResponse = {
 export type BackstagePlugin<
   Routes extends AnyRoutes = {},
   ExternalRoutes extends AnyExternalRoutes = {},
+  PluginInputOptions extends {} = {},
 > = {
   getId(): string;
   getApis(): Iterable<AnyApiFactory>;
@@ -221,6 +229,7 @@ export type BackstagePlugin<
   provide<T>(extension: Extension<T>): T;
   routes: Routes;
   externalRoutes: ExternalRoutes;
+  __experimentalReconfigure(options: PluginInputOptions): void;
 };
 
 // @public
@@ -230,18 +239,23 @@ export type BackstageUserIdentity = {
   ownershipEntityRefs: string[];
 };
 
-// @alpha
+// @public
 export const bitbucketAuthApiRef: ApiRef<
   OAuthApi & ProfileInfoApi & BackstageIdentityApi & SessionApi
 >;
 
 // @public
-export type BootErrorPageProps = {
+export const bitbucketServerAuthApiRef: ApiRef<
+  OAuthApi & ProfileInfoApi & BackstageIdentityApi & SessionApi
+>;
+
+// @public
+export type BootErrorPageProps = PropsWithChildren<{
   step: 'load-config' | 'load-chunk';
   error: Error;
-};
+}>;
 
-// @alpha
+// @public
 export type CommonAnalyticsContext = {
   pluginId: string;
   routeRef: string;
@@ -303,9 +317,10 @@ export function createExternalRouteRef<
 export function createPlugin<
   Routes extends AnyRoutes = {},
   ExternalRoutes extends AnyExternalRoutes = {},
+  PluginInputOptions extends {} = {},
 >(
-  config: PluginConfig<Routes, ExternalRoutes>,
-): BackstagePlugin<Routes, ExternalRoutes>;
+  config: PluginConfig<Routes, ExternalRoutes, PluginInputOptions>,
+): BackstagePlugin<Routes, ExternalRoutes, PluginInputOptions>;
 
 // @public
 export function createReactExtension<
@@ -393,15 +408,15 @@ export type ErrorApiErrorContext = {
 export const errorApiRef: ApiRef<ErrorApi>;
 
 // @public
-export type ErrorBoundaryFallbackProps = {
+export type ErrorBoundaryFallbackProps = PropsWithChildren<{
   plugin?: BackstagePlugin_2;
   error: Error;
   resetError: () => void;
-};
+}>;
 
 // @public
 export type Extension<T> = {
-  expose(plugin: BackstagePlugin<any, any>): T;
+  expose(plugin: BackstagePlugin): T;
 };
 
 // @public
@@ -418,6 +433,7 @@ export type ExternalRouteRef<
 export type FeatureFlag = {
   name: string;
   pluginId: string;
+  description?: string;
 };
 
 // @public
@@ -462,17 +478,21 @@ export function getComponentData<T>(
   type: string,
 ): T | undefined;
 
-// @alpha
+// @public
 export const githubAuthApiRef: ApiRef<
   OAuthApi & ProfileInfoApi & BackstageIdentityApi & SessionApi
 >;
 
-// @alpha
+// @public
 export const gitlabAuthApiRef: ApiRef<
-  OAuthApi & ProfileInfoApi & BackstageIdentityApi & SessionApi
+  OAuthApi &
+    OpenIdConnectApi &
+    ProfileInfoApi &
+    BackstageIdentityApi &
+    SessionApi
 >;
 
-// @alpha
+// @public
 export const googleAuthApiRef: ApiRef<
   OAuthApi &
     OpenIdConnectApi &
@@ -482,9 +502,14 @@ export const googleAuthApiRef: ApiRef<
 >;
 
 // @public
-export type IconComponent = ComponentType<{
-  fontSize?: 'default' | 'small' | 'large';
-}>;
+export type IconComponent = ComponentType<
+  | {
+      fontSize?: 'large' | 'small' | 'default';
+    }
+  | {
+      fontSize?: 'medium' | 'large' | 'small';
+    }
+>;
 
 // @public
 export type IdentityApi = {
@@ -517,7 +542,7 @@ export type MergeParams<
   P2 extends AnyParams,
 > = (P1[keyof P1] extends never ? {} : P1) & (P2 extends undefined ? {} : P2);
 
-// @alpha
+// @public
 export const microsoftAuthApiRef: ApiRef<
   OAuthApi &
     OpenIdConnectApi &
@@ -559,7 +584,7 @@ export type OAuthRequesterOptions<TOAuthResponse> = {
 // @public
 export type OAuthScope = string | string[];
 
-// @alpha
+// @public
 export const oktaAuthApiRef: ApiRef<
   OAuthApi &
     OpenIdConnectApi &
@@ -568,7 +593,7 @@ export const oktaAuthApiRef: ApiRef<
     SessionApi
 >;
 
-// @alpha
+// @public
 export const oneloginAuthApiRef: ApiRef<
   OAuthApi &
     OpenIdConnectApi &
@@ -621,12 +646,14 @@ export type PendingOAuthRequest = {
 export type PluginConfig<
   Routes extends AnyRoutes,
   ExternalRoutes extends AnyExternalRoutes,
+  PluginInputOptions extends {},
 > = {
   id: string;
   apis?: Iterable<AnyApiFactory>;
   routes?: Routes;
   externalRoutes?: ExternalRoutes;
   featureFlags?: PluginFeatureFlagConfig[];
+  __experimentalConfigure?(options?: PluginInputOptions): {};
 };
 
 // @public
@@ -671,9 +698,9 @@ export enum SessionState {
 }
 
 // @public
-export type SignInPageProps = {
+export type SignInPageProps = PropsWithChildren<{
   onSignInSuccess(identityApi: IdentityApi_2): void;
-};
+}>;
 
 // @public
 export interface StorageApi {
@@ -715,7 +742,7 @@ export type TypesToApiRefs<T> = {
   [key in keyof T]: ApiRef<T[key]>;
 };
 
-// @alpha
+// @public
 export function useAnalytics(): AnalyticsTracker;
 
 // @public
@@ -750,10 +777,12 @@ export function useRouteRefParams<Params extends AnyParams>(
 ): Params;
 
 // @public
-export function withApis<T>(apis: TypesToApiRefs<T>): <P extends T>(
-  WrappedComponent: React_2.ComponentType<P>,
+export function withApis<T extends {}>(
+  apis: TypesToApiRefs<T>,
+): <TProps extends T>(
+  WrappedComponent: React_2.ComponentType<TProps>,
 ) => {
-  (props: React_2.PropsWithChildren<Omit<P, keyof T>>): JSX.Element;
+  (props: React_2.PropsWithChildren<Omit<TProps, keyof T>>): JSX.Element;
   displayName: string;
 };
 ```

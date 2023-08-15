@@ -14,12 +14,22 @@
  * limitations under the License.
  */
 
-import { base64url, generateSecret, SignJWT, jwtVerify, exportJWK } from 'jose';
 import { Config } from '@backstage/config';
 import { AuthenticationError } from '@backstage/errors';
+import { base64url, exportJWK, generateSecret, jwtVerify, SignJWT } from 'jose';
+import { DateTime, Duration } from 'luxon';
+import { LoggerService } from '@backstage/backend-plugin-api';
 import { TokenManager } from './types';
-import { Logger } from 'winston';
 
+const TOKEN_ALG = 'HS256';
+const TOKEN_SUB = 'backstage-server';
+const TOKEN_EXPIRY_AFTER = Duration.fromObject({ hours: 1 });
+const TOKEN_REISSUE_AFTER = Duration.fromObject({ minutes: 10 });
+
+/**
+ * A token manager that issues static fake tokens and never fails
+ * authentication. This can be useful for testing.
+ */
 class NoopTokenManager implements TokenManager {
   public readonly isInsecureServerTokenManager: boolean = true;
 
@@ -31,50 +41,67 @@ class NoopTokenManager implements TokenManager {
 }
 
 /**
- * Creates and validates tokens for use during backend-to-backend
+ * Options for {@link ServerTokenManager}.
+ *
+ * @public
+ */
+export interface ServerTokenManagerOptions {
+  /**
+   * The logger to use.
+   */
+  logger: LoggerService;
+}
+
+/**
+ * Creates and validates tokens for use during service-to-service
  * authentication.
  *
  * @public
  */
 export class ServerTokenManager implements TokenManager {
-  private verificationKeys: Uint8Array[];
+  private readonly options: ServerTokenManagerOptions;
+  private readonly verificationKeys: Uint8Array[];
   private signingKey: Uint8Array;
-  private privateKeyPromise?: Promise<void>;
-  private logger: Logger;
+  private privateKeyPromise: Promise<void> | undefined;
+  private currentTokenPromise: Promise<{ token: string }> | undefined;
 
+  /**
+   * Creates a token manager that issues static fake tokens and never fails
+   * authentication. This can be useful for testing.
+   */
   static noop(): TokenManager {
     return new NoopTokenManager();
   }
 
-  static fromConfig(config: Config, options: { logger: Logger }) {
-    const { logger } = options;
-
+  static fromConfig(config: Config, options: ServerTokenManagerOptions) {
     const keys = config.getOptionalConfigArray('backend.auth.keys');
     if (keys?.length) {
       return new ServerTokenManager(
         keys.map(key => key.getString('secret')),
-        logger,
+        options,
       );
     }
+
     if (process.env.NODE_ENV !== 'development') {
       throw new Error(
         'You must configure at least one key in backend.auth.keys for production.',
       );
     }
+
     // For development, if a secret has not been configured, we auto generate a secret instead of throwing.
-    logger.warn(
-      'Generated a secret for backend-to-backend authentication: DEVELOPMENT USE ONLY.',
+    options.logger.warn(
+      'Generated a secret for service-to-service authentication: DEVELOPMENT USE ONLY.',
     );
-    return new ServerTokenManager([], logger);
+    return new ServerTokenManager([], options);
   }
 
-  private constructor(secrets: string[], logger: Logger) {
+  private constructor(secrets: string[], options: ServerTokenManagerOptions) {
     if (!secrets.length && process.env.NODE_ENV !== 'development') {
       throw new Error(
         'No secrets provided when constructing ServerTokenManager',
       );
     }
-    this.logger = logger;
+    this.options = options;
     this.verificationKeys = secrets.map(s => base64url.decode(s));
     this.signingKey = this.verificationKeys[0];
   }
@@ -86,11 +113,13 @@ export class ServerTokenManager implements TokenManager {
         'Key generation is not supported outside of the dev environment',
       );
     }
+
     if (this.privateKeyPromise) {
       return this.privateKeyPromise;
     }
+
     const promise = (async () => {
-      const secret = await generateSecret('HS256');
+      const secret = await generateSecret(TOKEN_ALG);
       const jwk = await exportJWK(secret);
       this.verificationKeys.push(base64url.decode(jwk.k ?? ''));
       this.signingKey = this.verificationKeys[0];
@@ -98,13 +127,15 @@ export class ServerTokenManager implements TokenManager {
     })();
 
     try {
-      // If we fail to generate a new key, we need to clear the state so that
-      // the next caller will try to generate another key.
+      this.privateKeyPromise = promise;
       await promise;
     } catch (error) {
-      this.logger.error(`Failed to generate new key, ${error}`);
+      // If we fail to generate a new key, we need to clear the state so that
+      // the next caller will try to generate another key.
+      this.options.logger.error(`Failed to generate new key, ${error}`);
       delete this.privateKeyPromise;
     }
+
     return promise;
   }
 
@@ -112,26 +143,67 @@ export class ServerTokenManager implements TokenManager {
     if (!this.verificationKeys.length) {
       await this.generateKeys();
     }
-    const sub = 'backstage-server';
-    const jwt = await new SignJWT({ alg: 'HS256' })
-      .setProtectedHeader({ alg: 'HS256', sub: sub })
-      .setSubject('backstage-server')
-      .sign(this.signingKey);
-    return { token: jwt };
+
+    if (this.currentTokenPromise) {
+      return this.currentTokenPromise;
+    }
+
+    const result = Promise.resolve().then(async () => {
+      const jwt = await new SignJWT({})
+        .setProtectedHeader({ alg: TOKEN_ALG })
+        .setSubject(TOKEN_SUB)
+        .setExpirationTime(
+          DateTime.now().plus(TOKEN_EXPIRY_AFTER).toUnixInteger(),
+        )
+        .sign(this.signingKey);
+      return { token: jwt };
+    });
+
+    this.currentTokenPromise = result;
+
+    result
+      .then(() => {
+        setTimeout(() => {
+          this.currentTokenPromise = undefined;
+        }, TOKEN_REISSUE_AFTER.toMillis());
+      })
+      .catch(() => {
+        this.currentTokenPromise = undefined;
+      });
+
+    return result;
   }
 
   async authenticate(token: string): Promise<void> {
     let verifyError = undefined;
+
     for (const key of this.verificationKeys) {
       try {
-        await jwtVerify(token, key);
-        // If the verify succeeded, return
+        const {
+          protectedHeader: { alg },
+          payload: { sub, exp },
+        } = await jwtVerify(token, key);
+
+        if (alg !== TOKEN_ALG) {
+          throw new AuthenticationError(`Illegal alg "${alg}"`);
+        }
+
+        if (sub !== TOKEN_SUB) {
+          throw new AuthenticationError(`Illegal sub "${sub}"`);
+        }
+
+        if (typeof exp !== 'number') {
+          throw new AuthenticationError(
+            'Server-to-server token had no exp claim',
+          );
+        }
         return;
       } catch (e) {
         // Catch the verify exception and continue
         verifyError = e;
       }
     }
-    throw new AuthenticationError(`Invalid server token: ${verifyError}`);
+
+    throw new AuthenticationError('Invalid server token', verifyError);
   }
 }

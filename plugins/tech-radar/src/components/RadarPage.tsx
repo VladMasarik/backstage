@@ -20,8 +20,10 @@ import {
   Header,
   Page,
   SupportButton,
+  Link,
 } from '@backstage/core-components';
 import { Grid, Input, makeStyles } from '@material-ui/core';
+import Typography from '@material-ui/core/Typography';
 import React from 'react';
 import { RadarComponent, TechRadarComponentProps } from './RadarComponent';
 
@@ -33,6 +35,8 @@ const useStyles = makeStyles(() => ({
 
 /**
  * Properties for {@link TechRadarPage}
+ *
+ * @public
  */
 export interface TechRadarPageProps extends TechRadarComponentProps {
   /**
@@ -51,6 +55,8 @@ export interface TechRadarPageProps extends TechRadarComponentProps {
 
 /**
  * Main Page of Tech Radar
+ *
+ * @public
  */
 export function RadarPage(props: TechRadarPageProps) {
   const {
@@ -74,9 +80,16 @@ export function RadarPage(props: TechRadarPageProps) {
             onChange={e => setSearchText(e.target.value)}
           />
           <SupportButton>
-            This is used for visualizing the official guidelines of different
-            areas of software development such as languages, frameworks,
-            infrastructure and processes.
+            <Typography paragraph>
+              This is used for visualizing the official guidelines of different
+              areas of software development such as languages, frameworks,
+              infrastructure and processes. You can find an explanation for the
+              radar at{' '}
+              <Link to="https://opensource.zalando.com/tech-radar/">
+                Zalando Tech Radar
+              </Link>
+              .
+            </Typography>
           </SupportButton>
         </ContentHeader>
         <Grid container spacing={3} direction="row">

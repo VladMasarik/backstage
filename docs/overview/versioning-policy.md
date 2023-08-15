@@ -1,7 +1,7 @@
 ---
 id: versioning-policy
 title: Release & Versioning Policy
-description:
+description: The process and policy for releasing and versioning Backstage
 ---
 
 The Backstage project is comprised of a set of software components that together
@@ -32,7 +32,7 @@ their own release cadence and versioning policy.
 
 ## Main Release Line
 
-Release cadence: Monthly
+Release cadence: Monthly, specifically on the Tuesday before the third Wednesday of each month. The first release took place in March 2022.
 
 The main release line in versioned with a major, minor and patch version but
 does **not** adhere to [semver](https://semver.org). The version format is
@@ -49,7 +49,7 @@ functionality, breaking changes, and bug fixes, according the
 [versioning policy](#release-versioning-policy).
 
 Patch versions will only be released to address critical bug fixes. They are not
-bound to the regular cadence and are instead releases whenever needed.
+bound to the regular cadence and are instead released whenever needed.
 
 ## Next Release Line
 
@@ -99,7 +99,7 @@ This versioning is completely decoupled from the Backstage release versioning,
 meaning you might for example have `@backstage/core-plugin-api` version `3.1.4`
 be part of the `1.12` Backstage release.
 
-Following versioning policy applies to all packages:
+The following versioning policy applies to all packages:
 
 - Breaking changes are noted in the changelog, and documentation is updated.
 - Breaking changes are prefixed with `**BREAKING**: ` in the changelog.
@@ -116,9 +116,27 @@ For packages at version `1.0.0` or above, the following policy also applies:
   before it can be removed.
 - The release of breaking changes document a clear upgrade path in the
   changelog, both when deprecations are introduced and when they are removed.
-- Exports that have been marked as `@alpha` or `@beta` may receive breaking
-  changes without a deprecation period, but the changes must still adhere to
-  semver.
+- Breaking changes to `@alpha` or `@beta` exports must result in at least a minor
+  version bump, and may be done without a deprecation period.
+
+### Changes that are Not Considered Breaking
+
+There are a few changes that would typically be considered breaking changes, but
+that we make exceptions for. This is both to be able to evolve the project more
+rapidly, also because the alternative ends up having a bigger impact on users.
+
+For all Utility APIs and Backend Services that _have_ a built-in implementation,
+we only consider the API stability for consumers of those interfaces. This means
+that it is not considered a breaking change to break the contract for producers
+of the interface.
+
+Changes that fall under the above rule, must be marked with
+`**BREAKING PRODUCERS**:` in the changelog.
+
+For any case of dependency injection, it is not considered a breaking change to
+add a dependency on a Utility API or Backend Service that is provided by the
+framework. This includes any dependency that is provided by the
+`@backstage/app-defaults` and `@backstage/backend-defaults` packages.
 
 ### Release Stages
 
@@ -135,3 +153,32 @@ package export.
   accessed via `<package-name>/beta` or `<package-name>/alpha` imports.
 - `@alpha` - here be dragons. Not visible in the main package entry point, alpha
   exports must be accessed via `<package-name>/alpha` imports.
+
+## Node.js Releases
+
+The Backstage project uses [Node.js](https://nodejs.org/) for both its development
+tooling and backend runtime. In order for expectations to be clear we use the
+following schedule for determining the [Node.js releases](https://nodejs.org/en/about/releases/) that we support:
+
+- At any given point in time we support exactly two adjacent even-numbered
+  releases of Node.js, for example v12 and v14.
+- Once a new Node.js release becomes _Active LTS_ we switch to support that
+  release and the previous one. The switch is not immediate but done as soon
+  as possible. You can find the Node.js version supported by each release
+  in the `engines` field in the root `package.json` of a new app.
+
+When we say _Supporting_ a Node.js release, that means the following:
+
+- The CI pipeline in the main Backstage repo tests towards the supported releases, and we encourage any other Backstage related projects to do the same.
+- New Backstage projects created with `@backstage/create-app` will have their `engines.node` version set accordingly.
+- Dropping compatibility with unsupported releases is not considered a breaking change. This includes using new syntax or APIs, as well as bumping dependencies that drop support for these versions.
+
+## TypeScript Releases
+
+The Backstage project uses [TypeScript](https://www.typescriptlang.org/) for type checking within the project, as well as external APIs and documentation. It is important to have a clear policy for which TypeScript versions we support, since we want to be able to adopt new TypeScript features, but at the same time not break existing projects that are using older versions.
+
+The TypeScript release cadence is roughly every three months. An important aspect of the TypeScript versioning is that it does not follow semver. In particular, there is no differentiation between major and minor versions, both of them are breaking. One way to think about it is to merge the two, for example version 4.7 can be considered major version 47, 5.0 is 50, and so on. Within these releases there can be a number of patch releases, which do follow semver.
+
+Our policy is to support the last 3 TypeScript versions, for example 4.8, 4.9, and 5.0. Converted to time, this means that we typically support the TypeScript version from the last six to nine months, depending on where in the TypeScript release window we are. This policy applies as a snapshot at the time of any given Backstage release, new TypeScript releases only apply to the following Backstage main-line release, not to the current one.
+
+For anyone maintaining their own Backstage project, this means that you should strive to bump to the latest TypeScript version at least every 6 months, or you may encounter breakages as you upgrade Backstage packages. If you encounter any issues in doing so, please [file an issue in the main Backstage repository](https://github.com/backstage/backstage/issues/new/choose), as per this policy we should always support the latest version. In order to ensure that we do not start using new TypeScript features too early, the Backstage project itself uses the version at the beginning of the currently supported window, in the above example that would be version 4.8.

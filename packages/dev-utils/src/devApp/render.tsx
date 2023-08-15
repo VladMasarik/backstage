@@ -15,7 +15,7 @@
  */
 
 import { createApp } from '@backstage/app-defaults';
-import { FlatRoutes } from '@backstage/core-app-api';
+import { AppRouter, FlatRoutes } from '@backstage/core-app-api';
 import {
   AlertDisplay,
   OAuthRequestDialog,
@@ -44,19 +44,25 @@ import {
 } from '@backstage/integration-react';
 import { Box } from '@material-ui/core';
 import BookmarkIcon from '@material-ui/icons/Bookmark';
-import React, { ComponentType, ReactNode } from 'react';
+import React, { ComponentType, ReactNode, PropsWithChildren } from 'react';
 import ReactDOM from 'react-dom';
-import { hot } from 'react-hot-loader';
-import { Route } from 'react-router';
+import { createRoutesFromChildren, Route } from 'react-router-dom';
 import { SidebarThemeSwitcher } from './SidebarThemeSwitcher';
 
-const GatheringRoute: (props: {
+export function isReactRouterBeta(): boolean {
+  const [obj] = createRoutesFromChildren(<Route index element={<div />} />);
+  return !obj.index;
+}
+
+const MaybeGatheringRoute: (props: {
   path: string;
   element: JSX.Element;
   children?: ReactNode;
 }) => JSX.Element = ({ element }) => element;
 
-attachComponentData(GatheringRoute, 'core.gatherMountPoints', true);
+if (isReactRouterBeta()) {
+  attachComponentData(MaybeGatheringRoute, 'core.gatherMountPoints', true);
+}
 
 /** @public */
 export type DevAppPageOptions = {
@@ -137,7 +143,7 @@ export class DevAppBuilder {
       );
     }
     this.routes.push(
-      <GatheringRoute
+      <MaybeGatheringRoute
         key={path}
         path={path}
         element={opts.element}
@@ -158,10 +164,10 @@ export class DevAppBuilder {
   /**
    * Build a DevApp component using the resources registered so far
    */
-  build(): ComponentType<{}> {
-    const dummyRouteRef = createRouteRef({ id: 'dummy' });
-    const DummyPage = () => <Box p={3}>Page belonging to another plugin.</Box>;
-    attachComponentData(DummyPage, 'core.mountPoint', dummyRouteRef);
+  build(): ComponentType<PropsWithChildren<{}>> {
+    const fakeRouteRef = createRouteRef({ id: 'fake' });
+    const FakePage = () => <Box p={3}>Page belonging to another plugin.</Box>;
+    attachComponentData(FakePage, 'core.mountPoint', fakeRouteRef);
 
     const apis = [...this.apis];
     if (!apis.some(api => api.api.id === scmIntegrationsApiRef.id)) {
@@ -182,54 +188,44 @@ export class DevAppBuilder {
         for (const plugin of this.plugins ?? []) {
           const targets: Record<string, RouteRef<any>> = {};
           for (const routeKey of Object.keys(plugin.externalRoutes)) {
-            targets[routeKey] = dummyRouteRef;
+            targets[routeKey] = fakeRouteRef;
           }
           bind(plugin.externalRoutes, targets);
         }
       },
     });
 
-    const AppProvider = app.getProvider();
-    const AppRouter = app.getRouter();
+    const DevApp = (
+      <>
+        <AlertDisplay />
+        <OAuthRequestDialog />
+        {this.rootChildren}
+        <AppRouter>
+          <SidebarPage>
+            <Sidebar>
+              <SidebarSpacer />
+              {this.sidebarItems}
+              <SidebarSpace />
+              <SidebarDivider />
+              <SidebarThemeSwitcher />
+            </Sidebar>
+            <FlatRoutes>
+              {this.routes}
+              <Route path="/_external_route" element={<FakePage />} />
+            </FlatRoutes>
+          </SidebarPage>
+        </AppRouter>
+      </>
+    );
 
-    const DevApp = () => {
-      return (
-        <AppProvider>
-          <AlertDisplay />
-          <OAuthRequestDialog />
-          {this.rootChildren}
-          <AppRouter>
-            <SidebarPage>
-              <Sidebar>
-                <SidebarSpacer />
-                {this.sidebarItems}
-                <SidebarSpace />
-                <SidebarDivider />
-                <SidebarThemeSwitcher />
-              </Sidebar>
-              <FlatRoutes>
-                {this.routes}
-                <Route path="/_external_route" element={<DummyPage />} />
-              </FlatRoutes>
-            </SidebarPage>
-          </AppRouter>
-        </AppProvider>
-      );
-    };
-
-    return DevApp;
+    return app.createRoot(DevApp);
   }
 
   /**
    * Build and render directory to #root element, with react hot loading.
    */
   render(): void {
-    const hotModule =
-      require.cache['./dev/index.tsx'] ??
-      require.cache['./dev/index.ts'] ??
-      module;
-
-    const DevApp = hot(hotModule)(this.build());
+    const DevApp = this.build();
 
     if (
       window.location.pathname === '/' &&

@@ -18,17 +18,20 @@ import {
   BuildRun,
   BuildRunOptions,
   DashboardPullRequest,
+  GitTag,
   PullRequest,
   PullRequestOptions,
+  Readme,
+  ReadmeConfig,
   RepoBuild,
   RepoBuildOptions,
   Team,
 } from '@backstage/plugin-azure-devops-common';
 import { DiscoveryApi, IdentityApi } from '@backstage/core-plugin-api';
-
-import { AzureDevOpsApi } from './AzureDevOpsApi';
 import { ResponseError } from '@backstage/errors';
+import { AzureDevOpsApi } from './AzureDevOpsApi';
 
+/** @public */
 export class AzureDevOpsClient implements AzureDevOpsApi {
   private readonly discoveryApi: DiscoveryApi;
   private readonly identityApi: IdentityApi;
@@ -55,6 +58,18 @@ export class AzureDevOpsClient implements AzureDevOpsApi {
     )}/${encodeURIComponent(repoName)}?${queryString}`;
 
     const items = await this.get<RepoBuild[]>(urlSegment);
+    return { items };
+  }
+
+  public async getGitTags(
+    projectName: string,
+    repoName: string,
+  ): Promise<{ items: GitTag[] }> {
+    const urlSegment = `git-tags/${encodeURIComponent(
+      projectName,
+    )}/${encodeURIComponent(repoName)}`;
+
+    const items = await this.get<GitTag[]>(urlSegment);
     return { items };
   }
 
@@ -105,7 +120,23 @@ export class AzureDevOpsClient implements AzureDevOpsApi {
       queryString.append('repoName', repoName);
     }
     if (definitionName) {
-      queryString.append('definitionName', definitionName);
+      const definitionNames = definitionName.split(',');
+      if (definitionNames.length > 1) {
+        const buildRuns: BuildRun[] = [];
+        for (const name of definitionNames) {
+          queryString.set('definitionName', name.trim());
+          if (options?.top) {
+            queryString.set('top', options.top.toString());
+          }
+          const urlSegment = `builds/${encodeURIComponent(
+            projectName,
+          )}?${queryString}`;
+          const items = await this.get<BuildRun[]>(urlSegment);
+          buildRuns.push(...items);
+        }
+        return { items: buildRuns };
+      }
+      queryString.append('definitionName', definitionName.trim());
     }
     if (options?.top) {
       queryString.append('top', options.top.toString());
@@ -115,6 +146,14 @@ export class AzureDevOpsClient implements AzureDevOpsApi {
     )}?${queryString}`;
     const items = await this.get<BuildRun[]>(urlSegment);
     return { items };
+  }
+
+  public async getReadme(opts: ReadmeConfig): Promise<Readme> {
+    return await this.get(
+      `readme/${encodeURIComponent(opts.project)}/${encodeURIComponent(
+        opts.repo,
+      )}`,
+    );
   }
 
   private async get<T>(path: string): Promise<T> {

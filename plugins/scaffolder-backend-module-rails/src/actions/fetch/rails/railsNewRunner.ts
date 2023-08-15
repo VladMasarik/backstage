@@ -17,7 +17,7 @@
 import { ContainerRunner } from '@backstage/backend-common';
 import fs from 'fs-extra';
 import path from 'path';
-import { executeShellCommand } from '@backstage/plugin-scaffolder-backend';
+import { executeShellCommand } from '@backstage/plugin-scaffolder-node';
 import commandExists from 'command-exists';
 import {
   railsArgumentResolver,
@@ -74,6 +74,9 @@ export class RailsNewRunner {
         logStream,
       });
     } else {
+      if (!imageName) {
+        throw new Error('No imageName provided');
+      }
       const arrayExtraArguments = railsArgumentResolver(
         '/input',
         railsArguments as RailsRunOptions,

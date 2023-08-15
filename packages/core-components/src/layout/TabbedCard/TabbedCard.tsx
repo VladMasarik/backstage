@@ -95,7 +95,10 @@ export function TabbedCard(props: PropsWithChildren<Props>) {
     });
   } else {
     React.Children.map(children, child => {
-      if (React.isValidElement(child) && child?.props.value === value) {
+      if (
+        React.isValidElement<{ children?: unknown; value?: unknown }>(child) &&
+        child?.props.value === value
+      ) {
         selectedTabContent = child?.props.children;
       }
     });
@@ -142,7 +145,7 @@ const useCardTabStyles = makeStyles(
       },
     },
     selected: {
-      fontWeight: 'bold',
+      fontWeight: theme.typography.fontWeightBold,
     },
   }),
   { name: 'BackstageCardTab' },

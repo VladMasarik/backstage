@@ -15,14 +15,20 @@
  */
 
 import { getVoidLogger, SingleHostDiscovery } from '@backstage/backend-common';
+import { mockServices } from '@backstage/backend-test-utils';
 import { ConfigReader } from '@backstage/config';
 import { Request, Response } from 'express';
 import * as http from 'http';
-import { createProxyMiddleware, Options } from 'http-proxy-middleware';
+import {
+  createProxyMiddleware,
+  fixRequestBody,
+  Options,
+} from 'http-proxy-middleware';
 import { buildMiddleware, createRouter } from './router';
 
 jest.mock('http-proxy-middleware', () => ({
   createProxyMiddleware: jest.fn(() => () => undefined),
+  fixRequestBody: jest.fn(),
 }));
 
 const mockCreateProxyMiddleware = createProxyMiddleware as jest.MockedFunction<
@@ -31,16 +37,16 @@ const mockCreateProxyMiddleware = createProxyMiddleware as jest.MockedFunction<
 
 describe('createRouter', () => {
   describe('where all proxy config are valid', () => {
-    it('works', async () => {
-      const logger = getVoidLogger();
-      const config = new ConfigReader({
-        backend: {
-          baseUrl: 'https://example.com:7007',
-          listen: {
-            port: 7007,
-          },
+    const logger = getVoidLogger();
+    const config = new ConfigReader({
+      backend: {
+        baseUrl: 'https://example.com:7007',
+        listen: {
+          port: 7007,
         },
-        proxy: {
+      },
+      proxy: {
+        endpoints: {
           '/test': {
             target: 'https://example.com',
             headers: {
@@ -48,14 +54,77 @@ describe('createRouter', () => {
             },
           },
         },
-      });
-      const discovery = SingleHostDiscovery.fromConfig(config);
+      },
+    });
+    const discovery = SingleHostDiscovery.fromConfig(config);
+
+    beforeEach(() => {
+      mockCreateProxyMiddleware.mockClear();
+    });
+
+    it('works', async () => {
       const router = await createRouter({
         config,
         logger,
         discovery,
       });
       expect(router).toBeDefined();
+    });
+
+    it('supports deprecated proxy configuration', async () => {
+      const router = await createRouter({
+        config: mockServices.rootConfig({
+          data: {
+            proxy: {
+              '/test': {
+                target: 'https://example.com',
+                headers: {
+                  Authorization: 'Bearer supersecret',
+                },
+              },
+            },
+          },
+        }),
+        logger,
+        discovery,
+      });
+      expect(router).toBeDefined();
+      expect(mockCreateProxyMiddleware).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          target: 'https://example.com',
+        }),
+      );
+    });
+
+    it('revives request bodies when set', async () => {
+      const router = await createRouter({
+        config,
+        logger,
+        discovery,
+        reviveConsumedRequestBodies: true,
+      });
+      expect(router).toBeDefined();
+
+      expect(
+        mockCreateProxyMiddleware.mock.calls[0][1]?.onProxyReq,
+      ).toBeDefined();
+      expect(mockCreateProxyMiddleware.mock.calls[0][1]?.onProxyReq).toEqual(
+        fixRequestBody,
+      );
+    });
+
+    it('does not revive request bodies when not set', async () => {
+      const router = await createRouter({
+        config,
+        logger,
+        discovery,
+      });
+      expect(router).toBeDefined();
+
+      expect(
+        mockCreateProxyMiddleware.mock.calls[0][1]?.onProxyReq,
+      ).not.toBeDefined();
     });
   });
 
@@ -72,9 +141,11 @@ describe('createRouter', () => {
         },
         // no target would cause the buildMiddleware to fail
         proxy: {
-          '/test': {
-            headers: {
-              Authorization: 'Bearer supersecret',
+          endpoints: {
+            '/test': {
+              headers: {
+                Authorization: 'Bearer supersecret',
+              },
             },
           },
         },
@@ -101,9 +172,11 @@ describe('createRouter', () => {
         },
         // no target would cause the buildMiddleware to fail
         proxy: {
-          '/test': {
-            headers: {
-              Authorization: 'Bearer supersecret',
+          endpoints: {
+            '/test': {
+              headers: {
+                Authorization: 'Bearer supersecret',
+              },
             },
           },
         },
@@ -389,12 +462,52 @@ describe('buildMiddleware', () => {
     expect(Object.keys(testClientResponse.headers!)).toEqual(['set-cookie']);
   });
 
+  it('revives request body when configured', async () => {
+    buildMiddleware(
+      '/proxy',
+      logger,
+      '/test',
+      {
+        target: 'http://mocked',
+      },
+      true,
+    );
+
+    expect(createProxyMiddleware).toHaveBeenCalledTimes(1);
+
+    const config = mockCreateProxyMiddleware.mock.calls[0][1] as Options;
+
+    expect(config).toBeDefined();
+    expect(config.onProxyReq).toBeDefined();
+
+    config.onProxyReq!(
+      {} as http.ClientRequest,
+      {} as Request,
+      {} as Response,
+      {},
+    );
+    expect(fixRequestBody).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not revive request body when not configured', async () => {
+    buildMiddleware('/proxy', logger, '/test', {
+      target: 'http://mocked',
+    });
+
+    expect(createProxyMiddleware).toHaveBeenCalledTimes(1);
+
+    const config = mockCreateProxyMiddleware.mock.calls[0][1] as Options;
+
+    expect(config).toBeDefined();
+    expect(config.onProxyReq).not.toBeDefined();
+  });
+
   it('rejects malformed target URLs', async () => {
     expect(() =>
       buildMiddleware('/proxy', logger, '/test', 'backstage.io'),
-    ).toThrowError(/Proxy target is not a valid URL/);
+    ).toThrow(/Proxy target is not a valid URL/);
     expect(() =>
       buildMiddleware('/proxy', logger, '/test', { target: 'backstage.io' }),
-    ).toThrowError(/Proxy target is not a valid URL/);
+    ).toThrow(/Proxy target is not a valid URL/);
   });
 });

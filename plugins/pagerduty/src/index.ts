@@ -24,15 +24,12 @@ export {
   pagerDutyPlugin,
   pagerDutyPlugin as plugin,
   EntityPagerDutyCard,
+  HomePagePagerDutyCard,
 } from './plugin';
-export {
-  isPluginApplicableToEntity,
-  isPluginApplicableToEntity as isPagerDutyAvailable,
-  PagerDutyCard,
-} from './components/PagerDutyCard';
-export { TriggerButton } from './components/TriggerButton';
-export {
-  PagerDutyClient,
-  pagerDutyApiRef,
-  UnauthorizedError,
-} from './api/client';
+
+export * from './components';
+
+export * from './api';
+export * from './deprecated';
+
+export type { PagerDutyEntity } from './types';

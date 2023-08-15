@@ -29,6 +29,9 @@ import { Entity } from '@backstage/catalog-model';
 export const entityOwnershipFactRetriever: FactRetriever = {
   id: 'entityOwnershipFactRetriever',
   version: '0.0.1',
+  title: 'Entity Ownership',
+  description:
+    'Generates facts which indicate the quality of data in the spec.owner field',
   entityFilter: [
     { kind: ['component', 'domain', 'system', 'api', 'resource', 'template'] },
   ],
@@ -42,11 +45,19 @@ export const entityOwnershipFactRetriever: FactRetriever = {
       description: 'The spec.owner field is set and refers to a group',
     },
   },
-  handler: async ({ discovery, entityFilter }: FactRetrieverContext) => {
+  handler: async ({
+    discovery,
+    entityFilter,
+    tokenManager,
+  }: FactRetrieverContext) => {
+    const { token } = await tokenManager.getToken();
     const catalogClient = new CatalogClient({
       discoveryApi: discovery,
     });
-    const entities = await catalogClient.getEntities({ filter: entityFilter });
+    const entities = await catalogClient.getEntities(
+      { filter: entityFilter },
+      { token },
+    );
 
     return entities.items.map((entity: Entity) => {
       return {

@@ -13,16 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-jest.mock('./helpers');
+
+jest.mock('@backstage/plugin-scaffolder-node', () => {
+  const actual = jest.requireActual('@backstage/plugin-scaffolder-node');
+  return { ...actual, fetchContents: jest.fn() };
+});
 
 import os from 'os';
 import { resolve as resolvePath } from 'path';
 import { getVoidLogger, UrlReader } from '@backstage/backend-common';
 import { ConfigReader } from '@backstage/config';
 import { ScmIntegrations } from '@backstage/integration';
+import { fetchContents } from '@backstage/plugin-scaffolder-node';
 import { createFetchPlainAction } from './plain';
 import { PassThrough } from 'stream';
-import { fetchContents } from './helpers';
 
 describe('fetch:plain', () => {
   const integrations = ScmIntegrations.fromConfig(
@@ -33,7 +37,7 @@ describe('fetch:plain', () => {
     }),
   );
   const reader: UrlReader = {
-    read: jest.fn(),
+    readUrl: jest.fn(),
     readTree: jest.fn(),
     search: jest.fn(),
   };
@@ -73,7 +77,7 @@ describe('fetch:plain', () => {
         targetPath: 'lol',
       },
     });
-    expect(fetchContents).toBeCalledWith(
+    expect(fetchContents).toHaveBeenCalledWith(
       expect.objectContaining({
         outputPath: resolvePath(mockContext.workspacePath, 'lol'),
         fetchUrl:

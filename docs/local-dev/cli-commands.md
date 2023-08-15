@@ -10,55 +10,64 @@ and where to use them.
 ## help
 
 This command displays a help summary or detailed help screens for each command.
-Below is a cleaned up output of `yarn backstage-cli --help`
+Below is a cleaned up output of `yarn backstage-cli --help`:
 
 ```text
-repo [command]        Command that run across an entire Backstage project
-package [command]     Lifecycle scripts for individual packages
-migrate [command]     Migration utilities
-
-create                Open up an interactive guide to creating new things in your app
-
-config:docs           Browse the configuration reference documentation
-config:print          Print the app configuration for the current package
-config:check          Validate that the given configuration loads and matches schema
-config:schema         Dump the app configuration schema
-
-versions:bump         Bump Backstage packages to the latest versions
-versions:check        Check Backstage package versioning
-
-build-workspace       Builds a temporary dist workspace from the provided packages
-create-github-app     Create new GitHub App in your organization (experimental)
-
-info                  Show helpful information for debugging and reporting bugs
-help [command]        display help for command
+new [options]                                  Open up an interactive guide to creating new things in
+                                                your app
+test                                           Run tests, forwarding args to Jest, defaulting to watch
+                                                mode [DEPRECATED]
+config:docs [options]                          Browse the configuration reference documentation
+config:print [options]                         Print the app configuration for the current package
+config:check [options]                         Validate that the given configuration loads and matches
+                                                schema
+config:schema [options]                        Print configuration schema
+repo [command]                                 Command that run across an entire Backstage project
+package [command]                              Lifecycle scripts for individual packages
+migrate [command]                              Migration utilities
+versions:bump [options]                        Bump Backstage packages to the latest versions
+versions:check [options]                       Check Backstage package versioning
+clean                                          Delete cache directories [DEPRECATED]
+build-workspace <workspace-dir> [packages...]  Builds a temporary dist workspace from the provided
+                                                packages
+create-github-app <github-org>                 Create new GitHub App in your organization.
+info                                           Show helpful information for debugging and reporting bugs
+help [command]                                 display help for command
 ```
 
-The `package` command category, `yarn backstage-cli package --help`
+The `package` command category, `yarn backstage-cli package --help`:
 
 ```text
-start [options]       Start a package for local development
-build [options]       Build a package for production deployment or publishing
-lint [options]        Lint a package
-test                  Run tests, forwarding args to Jest, defaulting to watch mode
-clean                 Delete cache directories
-prepack               Prepares a package for packaging before publishing
-postpack              Restores the changes made by the prepack command
+start [options]                  Start a package for local development
+build [options]                  Build a package for production deployment or publishing
+lint [options] [directories...]  Lint a package
+test                             Run tests, forwarding args to Jest, defaulting to watch mode
+clean                            Delete cache directories
+prepack                          Prepares a package for packaging before publishing
+postpack                         Restores the changes made by the prepack command
+help [command]                   display help for command
 ```
 
-The `repo` command category, `yarn backstage-cli repo --help`
+The `repo` command category, `yarn backstage-cli repo --help`:
 
 ```text
-build [options]       Build packages in the project, excluding bundled app and backend packages.
-lint [options]        Lint all packages in the project
+build [options]              Build packages in the project, excluding bundled app and backend packages.
+lint [options]               Lint all packages in the project
+clean                        Delete cache and output directories
+list-deprecations [options]  List deprecations
+test [options]               Run tests, forwarding args to Jest, defaulting to watch mode
+help [command]               display help for command
 ```
 
-The `migrate` command category, `yarn backstage-cli migrate --help`
+The `migrate` command category, `yarn backstage-cli migrate --help`:
 
 ```text
 package-roles         Add package role field to packages that don't have it
 package-scripts       Set package scripts according to each package role
+package-exports       Synchronize package subpath export definitions
 package-lint-configs  Migrates all packages to use @backstage/cli/config/eslint-factory
+react-router-deps     Migrates the react-router dependencies for all packages to be peer dependencies
+help [command]        display help for command
 ```
 
 ## repo build
@@ -73,7 +82,7 @@ Build packages in the project, excluding bundled app and backend packages.
 
 Options:
   --all          Build all packages, including bundled app and backend packages.
-  --since &lt;ref&gt;  Only build packages and their dev dependents that changed since the specified ref
+  --since <ref>  Only build packages and their dev dependents that changed since the specified ref
 ```
 
 ## repo lint
@@ -86,8 +95,8 @@ Usage: backstage-cli repo lint [options]
 Lint all packages in the project
 
 Options:
-  --format &lt;format&gt;  Lint report output format (default: "eslint-formatter-friendly")
-  --since &lt;ref&gt;      Only lint packages that changed since the specified ref
+  --format <format>  Lint report output format (default: "eslint-formatter-friendly")
+  --since <ref>      Only lint packages that changed since the specified ref
   --fix              Attempt to automatically fix violations
 ```
 
@@ -101,8 +110,8 @@ Usage: backstage-cli package start [options]
 Start a package for local development
 
 Options:
-  --config &lt;path&gt;  Config files to load instead of app-config.yaml (default: [])
-  --role &lt;name&gt;    Run the command with an explicit package role
+  --config <path>  Config files to load instead of app-config.yaml (default: [])
+  --role <name>    Run the command with an explicit package role
   --check          Enable type checking and linting if available
   --inspect        Enable debugger in Node.js environments
   --inspect-brk    Enable debugger in Node.js environments, breaking before code starts
@@ -118,12 +127,11 @@ Usage: backstage-cli package build [options]
 Build a package for production deployment or publishing
 
 Options:
-  --role &lt;name&gt;              Run the command with an explicit package role
+  --role <name>              Run the command with an explicit package role
   --minify                   Minify the generated code. Does not apply to app or backend packages.
-  --experimental-type-build  Enable experimental type build. Does not apply to app or backend packages.
   --skip-build-dependencies  Skip the automatic building of local dependencies. Applies to backend packages only.
   --stats                    If bundle stats are available, write them to the output directory. Applies to app packages only.
-  --config &lt;path&gt;            Config files to load instead of app-config.yaml. Applies to app packages only. (default: [])
+  --config <path>            Config files to load instead of app-config.yaml. Applies to app packages only. (default: [])
 ```
 
 ## package lint
@@ -139,7 +147,7 @@ Usage: backstage-cli package lint [options]
 Lint a package
 
 Options:
-  --format &lt;format&gt;  Lint report output format (default: "eslint-formatter-friendly")
+  --format <format>  Lint report output format (default: "eslint-formatter-friendly")
   --fix              Attempt to automatically fix violations
 ```
 
@@ -201,26 +209,25 @@ Usage: backstage-cli package postpack [options]
 Restores the changes made by the prepack command
 ```
 
-## create
+## new
 
-The `create` command opens up an interactive guide for you to create new things
+The `new` command opens up an interactive guide for you to create new things
 in your app. If you do not pass in any options it is completely interactive, but
 it is possible to pre-select what you want to create using the `--select` flag,
-and provide options using `--options`, for example:
+and provide options using `--option`, for example:
 
 ```bash
-backstage-cli create --select plugin --option id=foo
+backstage-cli new --select plugin --option id=foo
 ```
 
 This command is typically added as script in the root `package.json` to be
-executed with `yarn backstage-create`, using options that are appropriate for
-the organization that owns the app repo. For example you may have it set up like
-this:
+executed with `yarn new`, using options that are appropriate for the organization
+that owns the app repo. For example you may have it set up like this:
 
 ```json
 {
   "scripts": {
-    "backstage-create": "backstage-cli create --scope internal --no-private --npm-registry https://acme.org/npm"
+    "new": "backstage-cli new --scope internal --no-private --npm-registry https://acme.org/npm"
   }
 }
 ```
@@ -229,15 +236,15 @@ this:
 Usage: backstage-cli create [options]
 
 Options:
-  --select &lt;name&gt;          Select the thing you want to be creating upfront
-  --option &lt;name&gt;=&lt;value&gt;  Pre-fill options for the creation process (default: [])
-  --scope &lt;scope&gt;          The scope to use for new packages
-  --npm-registry &lt;URL&gt;     The package registry to use for new packages
+  --select <name>          Select the thing you want to be creating upfront
+  --option <name>=<value>  Pre-fill options for the creation process (default: [])
+  --scope <scope>          The scope to use for new packages
+  --npm-registry <URL>     The package registry to use for new packages
   --no-private             Do not mark new packages as private
   -h, --help               display help for command
 ```
 
-## config:docs
+## config\:docs
 
 This commands opens up the reference documentation of your apps local
 configuration schema in the browser. This is useful to get an overview of what
@@ -250,11 +257,11 @@ Usage: backstage-cli config:docs [options]
 Browse the configuration reference documentation
 
 Options:
-  --package &lt;name&gt;  Only include the schema that applies to the given package
+  --package <name>  Only include the schema that applies to the given package
   -h, --help        display help for command
 ```
 
-## config:print
+## config\:print
 
 Print the static configuration, defaulting to reading `app-config.yaml` in the
 repo root, using schema collected from all local packages in the repo.
@@ -270,16 +277,16 @@ yarn backstage-cli config:print --frontend --package my-app
 Usage: backstage-cli config:print [options]
 
 Options:
-  --package &lt;name&gt;   Only load config schema that applies to the given package
+  --package <name>   Only load config schema that applies to the given package
   --lax              Do not require environment variables to be set
   --frontend         Print only the frontend configuration
   --with-secrets     Include secrets in the printed configuration
-  --format &lt;format&gt;  Format to print the configuration in, either json or yaml [yaml]
-  --config &lt;path&gt;    Config files to load instead of app-config.yaml (default: [])
+  --format <format>  Format to print the configuration in, either json or yaml [yaml]
+  --config <path>    Config files to load instead of app-config.yaml (default: [])
   -h, --help         display help for command
 ```
 
-## config:check
+## config\:check
 
 Validate that static configuration loads and matches schema, defaulting to
 reading `app-config.yaml` in the repo root and using schema collected from all
@@ -289,15 +296,16 @@ local packages in the repo.
 Usage: backstage-cli config:check [options]
 
 Options:
-  --package &lt;name&gt;  Only load config schema that applies to the given package
+  --package <name>  Only load config schema that applies to the given package
   --lax             Do not require environment variables to be set
   --frontend        Only validate the frontend configuration
-  --deprecated      List all deprecated configuration settings
-  --config &lt;path&gt;   Config files to load instead of app-config.yaml (default: [])
+  --deprecated      Output deprecated configuration settings
+  --strict          Ensure that the provided config(s) has no errors and does not contain keys not in the schema.
+  --config <path>   Config files to load instead of app-config.yaml (default: [])
   -h, --help        display help for command
 ```
 
-## config:schema
+## config\:schema
 
 Dump the configuration schema that was collected from all local packages in the
 repo.
@@ -311,12 +319,12 @@ Usage: backstage-cli config:schema [options]
 Print configuration schema
 
 Options:
-  --package &lt;name&gt;   Only output config schema that applies to the given package
-  --format &lt;format&gt;  Format to print the schema in, either json or yaml [yaml]
+  --package <name>   Only output config schema that applies to the given package
+  --format <format>  Format to print the schema in, either json or yaml [yaml]
   -h, --help         display help for command
 ```
 
-## versions:bump
+## versions\:bump
 
 Bump all `@backstage` packages to the latest versions. This checks for updates
 in the package registry, and will update entries both in `yarn.lock` and
@@ -327,11 +335,11 @@ Usage: backstage-cli versions:bump [options]
 
 Options:
   -h, --help        display help for command
-  --pattern &lt;glob&gt;  Override glob for matching packages to upgrade
-  --release &lt;version|next|main&gt; Bump to a specific Backstage release line or version (default: "main")
+  --pattern <glob>  Override glob for matching packages to upgrade
+  --release <version|next|main> Bump to a specific Backstage release line or version (default: "main")
 ```
 
-## versions:check
+## versions\:check
 
 Validate `@backstage` dependencies within the repo, making sure that there are
 no duplicates of packages that might lead to breakages.
@@ -355,7 +363,7 @@ package. This essentially calls `yarn pack` in each included package and unpacks
 the resulting archive in the target `workspace-dir`.
 
 ```text
-Usage: backstage-cli build-workspace [options] &lt;workspace-dir&gt;
+Usage: backstage-cli build-workspace [options] <workspace-dir>
 ```
 
 ## create-github-app
@@ -368,7 +376,7 @@ Launches a browser to create the App through GitHub and saves the result as a
 YAML file that can be referenced in the GitHub integration configuration.
 
 ```text
-Usage: backstage-cli create-github-app &lt;github-org&gt;
+Usage: backstage-cli create-github-app <github-org>
 ```
 
 ## info

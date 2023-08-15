@@ -104,6 +104,7 @@ describe('loadConfig', () => {
       `,
       '/root/secrets/substituted.txt': '123abc',
       '/root/${ESCAPE_ME}.txt': 'notSubstituted',
+      '/root/empty.yaml': '# just a comment',
     });
   });
 
@@ -131,6 +132,7 @@ describe('loadConfig', () => {
               escaped: '${Escaped}',
             },
           },
+          path: '/root/app-config.yaml',
         },
       ],
     });
@@ -185,6 +187,7 @@ describe('loadConfig', () => {
               escaped: '${Escaped}',
             },
           },
+          path: '/root/app-config.yaml',
         },
         {
           context: 'app-config2.yaml',
@@ -195,6 +198,7 @@ describe('loadConfig', () => {
               escaped: '${Escaped}',
             },
           },
+          path: '/root/app-config2.yaml',
         },
       ],
     });
@@ -217,6 +221,7 @@ describe('loadConfig', () => {
               escaped: '${Escaped}',
             },
           },
+          path: '/root/app-config.yaml',
         },
       ],
     });
@@ -242,6 +247,7 @@ describe('loadConfig', () => {
               escaped: '${Escaped}',
             },
           },
+          path: '/root/app-config.yaml',
         },
         {
           context: 'app-config.development.yaml',
@@ -258,6 +264,7 @@ describe('loadConfig', () => {
               secret: 'abc123',
             },
           },
+          path: '/root/app-config.development.yaml',
         },
       ],
     });
@@ -281,6 +288,7 @@ describe('loadConfig', () => {
               noSubstitute: 'notSubstituted',
             },
           },
+          path: '/root/app-config.substitute.yaml',
         },
       ],
     });
@@ -310,6 +318,7 @@ describe('loadConfig', () => {
               escaped: '${Escaped}',
             },
           },
+          path: '/root/app-config.yaml',
         },
       ],
     });
@@ -327,6 +336,7 @@ describe('loadConfig', () => {
             title: 'New Title',
           },
         },
+        path: '/root/app-config.yaml',
       },
     ]);
 
@@ -363,6 +373,7 @@ describe('loadConfig', () => {
               secret: 'abc123',
             },
           },
+          path: '/root/app-config.development.yaml',
         },
       ],
     });
@@ -387,6 +398,7 @@ describe('loadConfig', () => {
             secret: 'abc234',
           },
         },
+        path: '/root/app-config.development.yaml',
       },
     ]);
 
@@ -467,6 +479,17 @@ describe('loadConfig', () => {
       },
     });
     await new Promise(resolve => setTimeout(resolve, 1000));
+  });
+
+  it('handles empty files gracefully', async () => {
+    await expect(
+      loadConfig({
+        configRoot: '/root',
+        configTargets: [{ path: '/root/empty.yaml' }],
+      }),
+    ).resolves.toEqual({
+      appConfigs: [],
+    });
   });
 
   function defer<T>() {

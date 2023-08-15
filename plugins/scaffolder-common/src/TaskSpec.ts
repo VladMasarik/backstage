@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { JsonValue, JsonObject } from '@backstage/types';
+import type { EntityMeta, UserEntity } from '@backstage/catalog-model';
+import type { JsonArray, JsonObject, JsonValue } from '@backstage/types';
 
 /**
  * Information about a template that is stored on a task specification.
@@ -31,6 +32,16 @@ export type TemplateInfo = {
    * Where the template is stored, so we can resolve relative paths for things like `fetch:template` paths.
    */
   baseUrl?: string;
+
+  /**
+   * the Template entity
+   */
+  entity?: {
+    /**
+     * The metadata of the Template
+     */
+    metadata: EntityMeta;
+  };
 };
 
 /**
@@ -40,7 +51,7 @@ export type TemplateInfo = {
  */
 export interface TaskStep {
   /**
-   * A unqiue identifier for this step.
+   * A unique identifier for this step.
    */
   id: string;
   /**
@@ -59,6 +70,10 @@ export interface TaskStep {
    * When this is false, or if the templated value string evaluates to something that is falsy the step will be skipped.
    */
   if?: string | boolean;
+  /**
+   * Run step repeatedly
+   */
+  each?: string | JsonArray;
 }
 
 /**
@@ -91,6 +106,19 @@ export interface TaskSpecV1beta3 {
    * Some information about the template that is stored on the task spec.
    */
   templateInfo?: TemplateInfo;
+  /**
+   * Some decoration of the author of the task that should be available in the context
+   */
+  user?: {
+    /**
+     * The decorated entity from the Catalog
+     */
+    entity?: UserEntity;
+    /**
+     * An entity ref for the author of the task
+     */
+    ref?: string;
+  };
 }
 
 /**

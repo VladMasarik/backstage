@@ -147,47 +147,89 @@ describe('detectErrors', () => {
     const [err1, err2, err3, err4] = errors ?? [];
 
     expect(err1).toStrictEqual({
-      cluster: 'cluster-a',
-      kind: 'Pod',
-      message: [
-        'container=other-side-car restarted 38 times',
-        'container=side-car restarted 38 times',
-      ],
-      names: ['dice-roller-canary-7d64cd756c-55rfq'],
+      sourceRef: {
+        apiGroup: 'v1',
+        kind: 'Pod',
+        name: 'dice-roller-canary-7d64cd756c-55rfq',
+        namespace: 'default',
+      },
+      message:
+        'back-off 5m0s restarting failed container=other-side-car pod=dice-roller-canary-7d64cd756c-55rfq_default(65ad28e3-5d51-4b4b-9bf8-4cb069803034)',
       severity: 4,
+      proposedFix: {
+        container: 'other-side-car',
+        errorType: 'CrashLoopBackOff',
+        actions: ['Check the crash logs for stacktraces'],
+        rootCauseExplanation:
+          'The container other-side-car has crashed many times, it will be exponentially restarted until it stops crashing',
+        type: 'logs',
+      },
+      occurrenceCount: 1,
+      type: 'container-waiting',
     });
 
     expect(err2).toStrictEqual({
-      cluster: 'cluster-a',
-      kind: 'Pod',
-      message: [
-        'containers with unready status: [side-car other-side-car]',
-        'containers with unready status: [side-car other-side-car]',
-      ],
-      names: ['dice-roller-canary-7d64cd756c-55rfq'],
-      severity: 5,
+      sourceRef: {
+        apiGroup: 'v1',
+        kind: 'Pod',
+        name: 'dice-roller-canary-7d64cd756c-55rfq',
+        namespace: 'default',
+      },
+      proposedFix: {
+        container: 'other-side-car',
+        errorType: 'CrashLoopBackOff',
+        actions: ['Check the crash logs for stacktraces'],
+        rootCauseExplanation:
+          'The container other-side-car has crashed many times, it will be exponentially restarted until it stops crashing',
+        type: 'logs',
+      },
+      message:
+        'back-off 5m0s restarting failed container=side-car pod=dice-roller-canary-7d64cd756c-55rfq_default(65ad28e3-5d51-4b4b-9bf8-4cb069803034)',
+      severity: 4,
+      occurrenceCount: 1,
+      type: 'container-waiting',
     });
 
     expect(err3).toStrictEqual({
-      cluster: 'cluster-a',
-      kind: 'Pod',
-      message: [
-        'back-off 5m0s restarting failed container=other-side-car pod=dice-roller-canary-7d64cd756c-55rfq_default(65ad28e3-5d51-4b4b-9bf8-4cb069803034)',
-        'back-off 5m0s restarting failed container=side-car pod=dice-roller-canary-7d64cd756c-55rfq_default(65ad28e3-5d51-4b4b-9bf8-4cb069803034)',
-      ],
-      names: ['dice-roller-canary-7d64cd756c-55rfq'],
-      severity: 6,
+      sourceRef: {
+        apiGroup: 'v1',
+        kind: 'Pod',
+        name: 'dice-roller-canary-7d64cd756c-55rfq',
+        namespace: 'default',
+      },
+      message: 'container=other-side-car restarted 123 times',
+      severity: 4,
+      occurrenceCount: 123,
+      proposedFix: {
+        container: 'other-side-car',
+        errorType: 'Error',
+        actions: ['Check the crash logs for stacktraces'],
+        rootCauseExplanation:
+          'This container has exited with a non-zero exit code (1)',
+        type: 'logs',
+      },
+      type: 'containers-restarting',
     });
 
     expect(err4).toStrictEqual({
-      cluster: 'cluster-a',
-      kind: 'Pod',
-      message: [
-        'container=other-side-car exited with error code (1)',
-        'container=side-car exited with error code (1)',
-      ],
-      names: ['dice-roller-canary-7d64cd756c-55rfq'],
+      sourceRef: {
+        apiGroup: 'v1',
+        kind: 'Pod',
+        name: 'dice-roller-canary-7d64cd756c-55rfq',
+        namespace: 'default',
+      },
+      proposedFix: {
+        container: 'other-side-car',
+        errorType: 'Error',
+        actions: ['Check the crash logs for stacktraces'],
+        rootCauseExplanation:
+          'This container has exited with a non-zero exit code (1)',
+        type: 'logs',
+      },
+      message: 'container=side-car restarted 38 times',
       severity: 4,
+      occurrenceCount: 38,
+      type: 'containers-restarting',
     });
   });
   it('should detect errors in pod with missing Config Map', () => {
@@ -198,27 +240,33 @@ describe('detectErrors', () => {
     const errors = result.get(CLUSTER_NAME);
 
     expect(errors).toBeDefined();
-    expect(errors).toHaveLength(2);
+    expect(errors).toHaveLength(1);
 
-    const [err1, err2] = errors ?? [];
+    const [err1] = errors ?? [];
 
     expect(err1).toStrictEqual({
-      cluster: 'cluster-a',
-      kind: 'Pod',
-      message: [
-        'containers with unready status: [nginx]',
-        'containers with unready status: [nginx]',
-      ],
-      names: ['dice-roller-bad-cm-855bf85464-mg6xb'],
-      severity: 5,
-    });
-
-    expect(err2).toStrictEqual({
-      cluster: 'cluster-a',
-      kind: 'Pod',
-      message: ['configmap "some-cm" not found'],
-      names: ['dice-roller-bad-cm-855bf85464-mg6xb'],
-      severity: 6,
+      message: 'configmap "some-cm" not found',
+      occurrenceCount: 1,
+      proposedFix: {
+        docsLink:
+          'https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/',
+        errorType: 'CreateContainerConfigError',
+        actions: [
+          'Ensure ConfigMaps references in the Deployment manifest are correct and the keys exist',
+          'Ensure Secrets references in the Deployment manifest are correct and the keys exist',
+        ],
+        rootCauseExplanation:
+          'There is missing or mismatching configuration required to start the container',
+        type: 'docs',
+      },
+      severity: 4,
+      sourceRef: {
+        apiGroup: 'v1',
+        kind: 'Pod',
+        name: 'dice-roller-bad-cm-855bf85464-mg6xb',
+        namespace: 'default',
+      },
+      type: 'container-waiting',
     });
   });
   it('should detect no errors in healthy deployment', () => {
@@ -244,11 +292,16 @@ describe('detectErrors', () => {
     const [err1] = errors ?? [];
 
     expect(err1).toStrictEqual({
-      cluster: 'cluster-a',
-      kind: 'Deployment',
-      message: ['Deployment does not have minimum availability.'],
-      names: ['dice-roller-canary'],
+      sourceRef: {
+        apiGroup: 'apps/v1',
+        kind: 'Deployment',
+        name: 'dice-roller-canary',
+        namespace: 'default',
+      },
+      message: 'Deployment does not have minimum availability.',
       severity: 6,
+      occurrenceCount: 1,
+      type: 'condition-message-present',
     });
   });
   it('should detect no errors in healthy hpa', () => {
@@ -274,13 +327,168 @@ describe('detectErrors', () => {
     const [err1] = errors ?? [];
 
     expect(err1).toStrictEqual({
-      cluster: 'cluster-a',
-      kind: 'HorizontalPodAutoscaler',
-      message: [
+      sourceRef: {
+        apiGroup: 'autoscaling/v1',
+        kind: 'HorizontalPodAutoscaler',
+        name: 'dice-roller',
+        namespace: 'default',
+      },
+      message:
         'Current number of replicas (10) is equal to the configured max number of replicas (10)',
-      ],
-      names: ['dice-roller'],
       severity: 8,
+      occurrenceCount: 1,
+      type: 'hpa-max-current-replicas',
+    });
+  });
+  it('pending pod is not an error', async () => {
+    const expiredReadiness = new Date();
+    expiredReadiness.setFullYear(expiredReadiness.getFullYear() - 1);
+    const result = await detectErrors(
+      onePod({
+        spec: {
+          containers: [
+            {
+              name: 'some-container',
+              readinessProbe: {
+                initialDelaySeconds: 20000,
+                failureThreshold: 5,
+                periodSeconds: 5,
+              },
+            },
+          ],
+        },
+        status: {
+          containerStatuses: [
+            {
+              name: 'some-container',
+              image: 'some-image',
+              imageID: 'some-image-id',
+              restartCount: 0,
+              containerID: 'running-container',
+              ready: false,
+              state: {
+                running: {
+                  startedAt: new Date().toISOString() as any,
+                },
+              },
+            },
+          ],
+          message: 'Container running',
+        },
+      }),
+    );
+
+    const errors = result.get(CLUSTER_NAME);
+
+    expect(errors).toBeDefined();
+    expect(errors).toHaveLength(0);
+  });
+  it('no probe pod has no errors', async () => {
+    const expiredReadiness = new Date();
+    expiredReadiness.setFullYear(expiredReadiness.getFullYear() - 1);
+    const result = await detectErrors(
+      onePod({
+        spec: {
+          containers: [
+            {
+              name: 'some-container',
+            },
+          ],
+        },
+        status: {
+          containerStatuses: [
+            {
+              name: 'some-container',
+              image: 'some-image',
+              imageID: 'some-image-id',
+              restartCount: 0,
+              containerID: 'running-container',
+              ready: false,
+              state: {
+                running: {
+                  startedAt: new Date().toISOString() as any,
+                },
+              },
+            },
+          ],
+          message: 'Container running',
+        },
+      }),
+    );
+
+    const errors = result.get(CLUSTER_NAME);
+
+    expect(errors).toBeDefined();
+    expect(errors).toHaveLength(0);
+  });
+  it('readiness probe failure results in error', async () => {
+    const expiredReadiness = new Date();
+    expiredReadiness.setFullYear(expiredReadiness.getFullYear() - 1);
+    const result = await detectErrors(
+      onePod({
+        spec: {
+          containers: [
+            {
+              name: 'some-container',
+              readinessProbe: {
+                initialDelaySeconds: 20,
+                failureThreshold: 5,
+                periodSeconds: 5,
+              },
+            },
+          ],
+        },
+        status: {
+          containerStatuses: [
+            {
+              name: 'some-container',
+              image: 'some-image',
+              imageID: 'some-image-id',
+              restartCount: 0,
+              containerID: 'running-container',
+              ready: false,
+              state: {
+                running: {
+                  startedAt: expiredReadiness.toISOString() as any,
+                },
+              },
+            },
+          ],
+          message: 'Container running',
+        },
+      }),
+    );
+
+    const errors = result.get(CLUSTER_NAME);
+
+    expect(errors).toBeDefined();
+    expect(errors).toHaveLength(1);
+
+    const [err1] = errors ?? [];
+
+    expect(err1).toStrictEqual({
+      message:
+        'The container some-container failed to start properly, but is not crashing',
+      occurrenceCount: 1,
+      proposedFix: {
+        errorType: 'ReadinessProbeFailed',
+        podName: '',
+        actions: [
+          'Ensure that the container starts correctly locally',
+          "Check the container's logs looking for error during startup",
+        ],
+        rootCauseExplanation:
+          'The container some-container failed to start properly, but is not crashing',
+        type: 'events',
+      },
+      severity: 4,
+      sourceRef: {
+        apiGroup: 'v1',
+        kind: 'Pod',
+        name: 'unknown pod',
+        namespace: 'unknown namespace',
+      },
+      type: 'readiness-probe-taking-too-long',
     });
   });
 });

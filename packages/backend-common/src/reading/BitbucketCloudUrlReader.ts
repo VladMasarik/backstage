@@ -39,9 +39,11 @@ import {
   SearchResponse,
   UrlReader,
 } from './types';
+import { ReadUrlResponseFactory } from './ReadUrlResponseFactory';
+import { parseLastModified } from './util';
 
 /**
- * Implements a {@link UrlReader} for files from Bitbucket Cloud.
+ * Implements a {@link @backstage/backend-plugin-api#UrlReaderService} for files from Bitbucket Cloud.
  *
  * @public
  */
@@ -79,7 +81,7 @@ export class BitbucketCloudUrlReader implements UrlReader {
     url: string,
     options?: ReadUrlOptions,
   ): Promise<ReadUrlResponse> {
-    const { etag, signal } = options ?? {};
+    const { etag, lastModifiedAfter, signal } = options ?? {};
     const bitbucketUrl = getBitbucketCloudFileFetchUrl(
       url,
       this.integration.config,
@@ -94,6 +96,9 @@ export class BitbucketCloudUrlReader implements UrlReader {
         headers: {
           ...requestOptions.headers,
           ...(etag && { 'If-None-Match': etag }),
+          ...(lastModifiedAfter && {
+            'If-Modified-Since': lastModifiedAfter.toUTCString(),
+          }),
         },
         // TODO(freben): The signal cast is there because pre-3.x versions of
         // node-fetch have a very slightly deviating AbortSignal type signature.
@@ -112,10 +117,12 @@ export class BitbucketCloudUrlReader implements UrlReader {
     }
 
     if (response.ok) {
-      return {
-        buffer: async () => Buffer.from(await response.arrayBuffer()),
+      return ReadUrlResponseFactory.fromNodeJSReadable(response.body, {
         etag: response.headers.get('ETag') ?? undefined,
-      };
+        lastModifiedAt: parseLastModified(
+          response.headers.get('Last-Modified'),
+        ),
+      });
     }
 
     const message = `${url} could not be read as ${bitbucketUrl}, ${response.status} ${response.statusText}`;
@@ -153,7 +160,7 @@ export class BitbucketCloudUrlReader implements UrlReader {
     }
 
     return await this.deps.treeResponseFactory.fromTarArchive({
-      stream: archiveResponse.body as unknown as Readable,
+      stream: Readable.from(archiveResponse.body),
       subpath: filepath,
       etag: lastCommitShortHash,
       filter: options?.filter,
@@ -184,6 +191,7 @@ export class BitbucketCloudUrlReader implements UrlReader {
           base: url,
         }),
         content: file.content,
+        lastModifiedAt: file.lastModifiedAt,
       })),
     };
   }

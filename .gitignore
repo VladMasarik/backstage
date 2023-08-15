@@ -61,6 +61,15 @@ typings/
 # Optional npm cache directory
 .npm
 
+# Yarn 3 files
+.pnp.*
+**/.yarn/*
+!**/.yarn/patches
+!**/.yarn/plugins
+!**/.yarn/releases
+!**/.yarn/sdks
+!**/.yarn/versions
+
 # Node version directives
 .nvmrc
 
@@ -130,6 +139,7 @@ site
 
 # Local configuration files
 *.local.yaml
+!packages/create-app/templates/default-app/app-config.local.yaml
 
 # Sensitive credentials
 *-credentials.yaml
@@ -139,3 +149,14 @@ cypress/cypress/*
 
 # Possible leftover from build:api-reports
 tsconfig.tmp.json
+
+# vscode database functionality support files
+*.session.sql
+
+# Lighthouse CI Reports
+**/.lighthouseci/*
+!**/.lighthouseci/scripts
+
+# VS Code backing up svg files
+*svg.bkp
+*svg.dtmp

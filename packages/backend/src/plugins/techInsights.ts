@@ -38,6 +38,7 @@ export default async function createPlugin(
     database: env.database,
     scheduler: env.scheduler,
     discovery: env.discovery,
+    tokenManager: env.tokenManager,
     factRetrievers: [
       createFactRetrieverRegistration({
         cadence: '1 1 1 * *', // Example cron, At 01:01 on day-of-month 1.
@@ -56,33 +57,34 @@ export default async function createPlugin(
       logger: env.logger,
       checks: [
         {
-          id: 'simpleTestCheck',
+          id: 'titleCheck',
           type: JSON_RULE_ENGINE_CHECK_TYPE,
-          name: 'simpleTestCheck',
-          description: 'Simple Check For Testing',
-          factIds: [
-            'entityMetadataFactRetriever',
-            'techdocsFactRetriever',
-            'entityOwnershipFactRetriever',
-          ],
+          name: 'Title Check',
+          description:
+            'Verifies that a Title, used to improve readability, has been set for this entity',
+          factIds: ['entityMetadataFactRetriever'],
           rule: {
             conditions: {
               all: [
-                {
-                  fact: 'hasGroupOwner',
-                  operator: 'equal',
-                  value: true,
-                },
                 {
                   fact: 'hasTitle',
                   operator: 'equal',
                   value: true,
                 },
-                {
-                  fact: 'hasDescription',
-                  operator: 'equal',
-                  value: true,
-                },
+              ],
+            },
+          },
+        },
+        {
+          id: 'techDocsCheck',
+          type: JSON_RULE_ENGINE_CHECK_TYPE,
+          name: 'TechDocs Check',
+          description:
+            'Verifies that TechDocs has been enabled for this entity',
+          factIds: ['techdocsFactRetriever'],
+          rule: {
+            conditions: {
+              all: [
                 {
                   fact: 'hasAnnotationBackstageIoTechdocsRef',
                   operator: 'equal',

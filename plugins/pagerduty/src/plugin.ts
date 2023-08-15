@@ -19,32 +19,72 @@ import {
   createPlugin,
   createRouteRef,
   discoveryApiRef,
+  fetchApiRef,
   configApiRef,
   createComponentExtension,
 } from '@backstage/core-plugin-api';
+import { createCardExtension } from '@backstage/plugin-home-react';
+import { HomePagePagerDutyCardProps } from './components/HomePagePagerDutyCard/Content';
 
 export const rootRouteRef = createRouteRef({
   id: 'pagerduty',
 });
 
+/** @public */
 export const pagerDutyPlugin = createPlugin({
   id: 'pagerduty',
   apis: [
     createApiFactory({
       api: pagerDutyApiRef,
-      deps: { discoveryApi: discoveryApiRef, configApi: configApiRef },
-      factory: ({ configApi, discoveryApi }) =>
-        PagerDutyClient.fromConfig(configApi, discoveryApi),
+      deps: {
+        discoveryApi: discoveryApiRef,
+        configApi: configApiRef,
+        fetchApi: fetchApiRef,
+      },
+      factory: ({ configApi, discoveryApi, fetchApi }) =>
+        PagerDutyClient.fromConfig(configApi, { discoveryApi, fetchApi }),
     }),
   ],
 });
 
+/** @public */
 export const EntityPagerDutyCard = pagerDutyPlugin.provide(
   createComponentExtension({
     name: 'EntityPagerDutyCard',
     component: {
       lazy: () =>
-        import('./components/PagerDutyCard').then(m => m.PagerDutyCard),
+        import('./components/EntityPagerDutyCard').then(
+          m => m.EntityPagerDutyCard,
+        ),
+    },
+  }),
+);
+
+/** @public */
+export const HomePagePagerDutyCard = pagerDutyPlugin.provide(
+  createCardExtension<HomePagePagerDutyCardProps>({
+    name: 'HomePagePagerDutyCard',
+    title: 'PagerDuty Homepage Card',
+    components: () => import('./components/HomePagePagerDutyCard'),
+    settings: {
+      schema: {
+        title: 'PagerDuty',
+        type: 'object',
+        properties: {
+          integrationKey: {
+            title: 'PagerDuty integration key',
+            type: 'string',
+          },
+          serviceId: {
+            title: 'PagerDuty service id',
+            type: 'string',
+          },
+          name: {
+            title: 'PagerDuty service name',
+            type: 'string',
+          },
+        },
+      },
     },
   }),
 );

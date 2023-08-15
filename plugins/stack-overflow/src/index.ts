@@ -18,13 +18,18 @@
  *
  * @packageDocumentation
  */
+
 export {
   stackOverflowPlugin,
   StackOverflowSearchResultListItem,
   HomePageStackOverflowQuestions,
 } from './plugin';
+export { StackOverflowIcon } from './icons';
 export type {
   StackOverflowQuestion,
   StackOverflowQuestionsContentProps,
   StackOverflowQuestionsRequestParams,
 } from './types';
+export type { StackOverflowSearchResultListItemProps } from './search/StackOverflowSearchResultListItem';
+export { stackOverflowApiRef } from './api';
+export type { StackOverflowApi } from './api';

@@ -14,14 +14,7 @@
  * limitations under the License.
  */
 
-import fs from 'fs-extra';
-import chalk from 'chalk';
-import uniq from 'lodash/uniq';
 import { serveBundle } from '../../lib/bundler';
-import { loadCliConfig } from '../../lib/config';
-import { paths } from '../../lib/paths';
-import { Lockfile } from '../../lib/versioning';
-import { includedFilter } from '../versions/lint';
 
 interface StartAppOptions {
   verifyVersions?: boolean;
@@ -32,44 +25,11 @@ interface StartAppOptions {
 }
 
 export async function startFrontend(options: StartAppOptions) {
-  if (options.verifyVersions) {
-    const lockfile = await Lockfile.load(paths.resolveTargetRoot('yarn.lock'));
-    const result = lockfile.analyze({
-      filter: includedFilter,
-    });
-    const problemPackages = [...result.newVersions, ...result.newRanges].map(
-      ({ name }) => name,
-    );
-
-    if (problemPackages.length > 1) {
-      console.log(
-        chalk.yellow(
-          `⚠️ Some of the following packages may be outdated or have duplicate installations:
-
-          ${uniq(problemPackages).join(', ')}
-        `,
-        ),
-      );
-      console.log(
-        chalk.yellow(
-          `⚠️ This can be resolved using the following command:
-
-          yarn backstage-cli versions:check --fix
-      `,
-        ),
-      );
-    }
-  }
-
-  const { name } = await fs.readJson(paths.resolveTarget('package.json'));
   const waitForExit = await serveBundle({
     entry: options.entry,
     checksEnabled: options.checksEnabled,
-    ...(await loadCliConfig({
-      args: options.configPaths,
-      fromPackage: name,
-      withFilteredKeys: true,
-    })),
+    configPaths: options.configPaths,
+    verifyVersions: options.verifyVersions,
   });
 
   await waitForExit();

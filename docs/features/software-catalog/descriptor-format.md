@@ -55,6 +55,7 @@ metadata:
     - url: https://admin.example-org.com
       title: Admin Dashboard
       icon: dashboard
+      type: admin-dashboard
 spec:
   type: website
   lifecycle: production
@@ -83,7 +84,8 @@ This is the same entity as returned in JSON from the software catalog API:
       {
         "url": "https://admin.example-org.com",
         "title": "Admin Dashboard",
-        "icon": "dashboard"
+        "icon": "dashboard",
+        "type": "admin-dashboard"
       }
     ],
     "tags": ["java"],
@@ -237,17 +239,35 @@ Example: `visits-tracking-service`, `CircleciBuildsDumpV2_avro_gcs`
 
 ### `namespace` [optional]
 
-The ID of a namespace that the entity belongs to. This is a string that follows
-the same format restrictions as `name` above.
+The ID of a namespace that the entity belongs to. This field is optional, and
+currently has no special semantics apart from bounding the name uniqueness
+constraint if specified. It is reserved for future use and may get broader
+semantic implication later.
 
-This field is optional, and currently has no special semantics apart from
-bounding the name uniqueness constraint if specified. It is reserved for future
-use and may get broader semantic implication later. For now, it is recommended
-to not specify a namespace unless you have specific need to do so. This means
-the entity belongs to the `"default"` namespace.
+For now, it is recommended to not specify a namespace unless you have specific
+need to do so. This means the entity belongs to the `"default"` namespace.
 
-Namespaces may also be part of the catalog, and are `v1` / `Namespace` entities,
-i.e. not Backstage specific but the same as in Kubernetes.
+Namespaces must be sequences of `[a-zA-Z0-9]`, possibly separated by `-`, at
+most 63 characters in total. Namespace names are case insensitive and will be rendered as lower case in most places.
+
+Example: `tracking-services`, `payment`
+
+### `uid` [output]
+
+Each entity gets an automatically generated globally unique ID when it first
+enters the database. This field is not meant to be specified as input data, but
+is rather created by the database engine itself when producing the output entity.
+
+Note that `uid` values are _not_ to be seen as stable, and should _not_ be used
+as external references to an entity. The `uid` can change over time even when a
+human observer might think that it wouldn't. As one of many examples,
+unregistering and re-registering the exact same file will result in a different
+`uid` value even though everything else is the same. Therefore there is very
+little, if any, reason to read or use this field externally.
+
+If you want to refer to an entity by some form of an identifier, you should
+always use [string-form entity reference](references.md#string-references)
+instead.
 
 ### `title` [optional]
 
@@ -331,7 +351,7 @@ component, like `java` or `go`.
 
 This field is optional, and currently has no special semantics.
 
-Each tag must be sequences of `[a-z0-9]` separated by `-`, at most 63 characters
+Each tag must be sequences of `[a-z0-9:+#]` separated by `-`, at most 63 characters
 in total.
 
 ### `links` [optional]
@@ -353,14 +373,17 @@ Fields of a link are:
 | `url`   | String | [Required] A `url` in a standard `uri` format (e.g. `https://example.com/some/page`) |
 | `title` | String | [Optional] A user friendly display name for the link.                                |
 | `icon`  | String | [Optional] A key representing a visual icon to be displayed in the UI.               |
+| `type`  | String | [Optional] An optional value to categorize links into specific groups.               |
 
 _NOTE_: The `icon` field value is meant to be a semantic key that will map to a
 specific icon that may be provided by an icon library (e.g. `material-ui`
 icons). These keys should be a sequence of `[a-z0-9A-Z]`, possibly separated by
-one of `[-_.]`. Backstage may support some basic icons out of the box, but the
+one of `[-_.]`. Backstage may support some basic icons out of the box such as those [defined in app-defaults](https://github.com/backstage/backstage/blob/master/packages/app-defaults/src/defaults/icons.tsx), but the
 Backstage integrator will ultimately be left to provide the appropriate icon
 component mappings. A generic fallback icon would be provided if a mapping
 cannot be resolved.
+
+The semantics of the `type` field are undefined. The adopter is free to define their own set of types and utilize them as they wish. Some potential use cases can be to utilize the type field to validate certain links exist on entities or to create customized UI components for specific link types.
 
 ## Common to All Kinds: Relations
 
@@ -378,12 +401,8 @@ follows.
   // ...
   "relations": [
     {
-      "target": {
-        "kind": "group",
-        "namespace": "default",
-        "name": "dev.infra"
-      },
-      "type": "ownedBy"
+      "type": "ownedBy",
+      "targetRef": "group:default/dev.infra"
     }
   ],
   "spec": {
@@ -395,11 +414,11 @@ follows.
 
 The fields of a relation are:
 
-| Field      | Type   | Description                                                                      |
-| ---------- | ------ | -------------------------------------------------------------------------------- |
-| `target`   | Object | A complete [compound reference](references.md) to the other end of the relation. |
-| `type`     | String | The type of relation FROM a source entity TO the target entity.                  |
-| `metadata` | Object | Reserved for future use.                                                         |
+| Field       | Type   | Description                                                                |
+| ----------- | ------ | -------------------------------------------------------------------------- |
+| `targetRef` | String | A full [entity reference](references.md) to the other end of the relation. |
+| `type`      | String | The type of relation FROM a source entity TO the target entity.            |
+| `metadata`  | Object | Reserved for future use.                                                   |
 
 Entity descriptor YAML files are not supposed to contain this field. Instead,
 catalog processors analyze the entity descriptor data and its surroundings, and
@@ -698,7 +717,7 @@ spec:
       name: Register
       action: catalog:register
       input:
-        repoContentsUrl: '{{ steps.publish.output.repoContentsUrl }}'
+        repoContentsUrl: {{ steps['publish'].output.repoContentsUrl }}
         catalogInfoPath: '/catalog-info.yaml'
 ```
 
@@ -959,9 +978,9 @@ way.
 The entries of this array are
 [entity references](https://backstage.io/docs/features/software-catalog/references).
 
-| [`kind`](#apiversion-and-kind-required) | Default [`namespace`](#namespace-optional) | Generated [relation](well-known-relations.md) type                                    |
-| --------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| [`Group`](#kind-group) (default)        | Same as this entity, typically `default`   | [`hasMember`, and reverse `memberOf`](well-known-relations.md#memberof-and-hasmember) |
+| [`kind`](#apiversion-and-kind-required) | Default [`namespace`](#namespace-optional) | Generated [relation](well-known-relations.md) type                                |
+| --------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
+| [`Group`](#kind-group) (default)        | Same as this entity, typically `default`   | [`parentOf`, and reverse `childOf`](well-known-relations.md#parentof-and-childof) |
 
 ### `spec.members` [optional]
 
@@ -1304,3 +1323,7 @@ resolved relative to the location of this Location entity itself.
 A list of targets as strings. They can all be either absolute paths/URLs
 (depending on the type), or relative paths such as `./details/catalog-info.yaml`
 which are resolved relative to the location of this Location entity itself.
+
+### `spec.presence` [optional]
+
+Describes whether the target of a location is required to exist or not. It defaults to `'required'` if not specified, can also be `'optional'`.

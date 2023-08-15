@@ -15,24 +15,25 @@
  */
 
 import { useEntity } from '@backstage/plugin-catalog-react';
+import {
+  sonarQubeApiRef,
+  useProjectInfo,
+} from '@backstage/plugin-sonarqube-react';
+import { SONARQUBE_PROJECT_KEY_ANNOTATION } from '@backstage/plugin-sonarqube-react';
 import { Chip, Grid } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import BugReport from '@material-ui/icons/BugReport';
+import Lock from '@material-ui/icons/Lock';
 import LockOpen from '@material-ui/icons/LockOpen';
 import Security from '@material-ui/icons/Security';
 import SentimentVeryDissatisfied from '@material-ui/icons/SentimentVeryDissatisfied';
+import SentimentVerySatisfied from '@material-ui/icons/SentimentVerySatisfied';
 import React, { useMemo } from 'react';
 import useAsync from 'react-use/lib/useAsync';
-import { sonarQubeApiRef } from '../../api';
-import {
-  SONARQUBE_PROJECT_KEY_ANNOTATION,
-  useProjectKey,
-} from '../useProjectKey';
 import { Percentage } from './Percentage';
 import { Rating } from './Rating';
 import { RatingCard } from './RatingCard';
 import { Value } from './Value';
-
 import {
   EmptyState,
   InfoCard,
@@ -40,8 +41,8 @@ import {
   MissingAnnotationEmptyState,
   Progress,
 } from '@backstage/core-components';
-
 import { useApi } from '@backstage/core-plugin-api';
+import { DateTime } from 'luxon';
 
 const useStyles = makeStyles(theme => ({
   badgeLabel: {
@@ -67,12 +68,10 @@ const useStyles = makeStyles(theme => ({
   lastAnalyzed: {
     color: theme.palette.text.secondary,
   },
-  disabled: {
-    backgroundColor: theme.palette.background.default,
-  },
 }));
 
-type DuplicationRating = {
+/** @public */
+export type DuplicationRating = {
   greaterThan: number;
   rating: '1.0' | '2.0' | '3.0' | '4.0' | '5.0';
 };
@@ -85,20 +84,26 @@ const defaultDuplicationRatings: DuplicationRating[] = [
   { greaterThan: 20, rating: '5.0' },
 ];
 
-export const SonarQubeCard = ({
-  variant = 'gridItem',
-  duplicationRatings = defaultDuplicationRatings,
-}: {
+/** @public */
+export const SonarQubeCard = (props: {
   variant?: InfoCardVariants;
   duplicationRatings?: DuplicationRating[];
 }) => {
+  const {
+    variant = 'gridItem',
+    duplicationRatings = defaultDuplicationRatings,
+  } = props;
   const { entity } = useEntity();
   const sonarQubeApi = useApi(sonarQubeApiRef);
 
-  const projectTitle = useProjectKey(entity);
+  const { projectKey: projectTitle, projectInstance } = useProjectInfo(entity);
 
   const { value, loading } = useAsync(
-    async () => sonarQubeApi.getFindingSummary(projectTitle),
+    async () =>
+      sonarQubeApi.getFindingSummary({
+        componentKey: projectTitle,
+        projectInstance: projectInstance,
+      }),
     [sonarQubeApi, projectTitle],
   );
 
@@ -155,9 +160,6 @@ export const SonarQubeCard = ({
           action: classes.action,
         },
       }}
-      className={
-        !loading && (!projectTitle || !value) ? classes.disabled : undefined
-      }
     >
       {loading && <Progress />}
 
@@ -195,14 +197,26 @@ export const SonarQubeCard = ({
                 rightSlot={<Rating rating={value.metrics.reliability_rating} />}
               />
               <RatingCard
-                titleIcon={<LockOpen />}
+                titleIcon={
+                  value.metrics.vulnerabilities === '0' ? (
+                    <Lock />
+                  ) : (
+                    <LockOpen />
+                  )
+                }
                 title="Vulnerabilities"
                 link={value.getIssuesUrl('VULNERABILITY')}
                 leftSlot={<Value value={value.metrics.vulnerabilities} />}
                 rightSlot={<Rating rating={value.metrics.security_rating} />}
               />
               <RatingCard
-                titleIcon={<SentimentVeryDissatisfied />}
+                titleIcon={
+                  value.metrics.code_smells === '0' ? (
+                    <SentimentVerySatisfied />
+                  ) : (
+                    <SentimentVeryDissatisfied />
+                  )
+                }
                 title="Code Smells"
                 link={value.getIssuesUrl('CODE_SMELL')}
                 leftSlot={<Value value={value.metrics.code_smells} />}
@@ -253,15 +267,9 @@ export const SonarQubeCard = ({
             </Grid>
             <Grid item className={classes.lastAnalyzed}>
               Last analyzed on{' '}
-              {new Date(value.lastAnalysis).toLocaleString('en-US', {
-                timeZone: 'UTC',
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })}
+              {DateTime.fromISO(value.lastAnalysis).toLocaleString(
+                DateTime.DATETIME_MED,
+              )}
             </Grid>
           </Grid>
         </>

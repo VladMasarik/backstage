@@ -1,5 +1,504 @@
 # @backstage/config-loader
 
+## 1.4.0-next.1
+
+### Minor Changes
+
+- 2f1859585998: Loading invalid TypeScript configuration schemas will now throw an error rather than silently being ignored.
+
+  In particular this includes defining any additional types other than `Config` in the schema file, or use of unsupported types such as `Record` or `Partial`.
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.8
+  - @backstage/errors@1.2.1
+  - @backstage/types@1.1.0
+
+## 1.4.0-next.0
+
+### Minor Changes
+
+- cd514545d1d0: Adds a new `deepVisibility` schema keyword that sets child visibility recursively to the defined value, respecting preexisting values or child `deepVisibility`.
+
+  Example usage:
+
+  ```ts
+  export interface Config {
+    /**
+     * Enforces a default of `secret` instead of `backend` for this object.
+     * @deepVisibility secret
+     */
+    mySecretProperty: {
+      type: 'object';
+      properties: {
+        secretValue: {
+          type: 'string';
+        };
+
+        verySecretProperty: {
+          type: 'string';
+        };
+      };
+    };
+  }
+  ```
+
+  Example of a schema that would not be allowed:
+
+  ```ts
+  export interface Config {
+    /**
+     * Set the top level property to secret, enforcing a default of `secret` instead of `backend` for this object.
+     * @deepVisibility secret
+     */
+    mySecretProperty: {
+      type: 'object';
+      properties: {
+        frontendUrl: {
+          /**
+           * We can NOT override the visibility to reveal a property to the front end.
+           * @visibility frontend
+           */
+          type: 'string';
+        };
+
+        verySecretProperty: {
+          type: 'string';
+        };
+      };
+    };
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.8
+  - @backstage/errors@1.2.1
+  - @backstage/types@1.1.0
+
+## 1.3.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/errors@1.2.1
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.8
+  - @backstage/types@1.1.0
+
+## 1.3.2-next.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/errors@1.2.1-next.0
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.8
+  - @backstage/types@1.1.0
+
+## 1.3.1
+
+### Patch Changes
+
+- f25427f665f7: Fix a bug where config items with `/` in the key were incorrectly handled.
+- a5c5491ff50c: Use `durationToMilliseconds` from `@backstage/types` instead of our own
+- Updated dependencies
+  - @backstage/types@1.1.0
+  - @backstage/errors@1.2.0
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.8
+
+## 1.3.1-next.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/errors@1.2.0-next.0
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.7
+  - @backstage/types@1.0.2
+
+## 1.3.1-next.0
+
+### Patch Changes
+
+- f25427f665f7: Fix a bug where config items with `/` in the key were incorrectly handled.
+- Updated dependencies
+  - @backstage/config@1.0.7
+  - @backstage/cli-common@0.1.12
+  - @backstage/errors@1.1.5
+  - @backstage/types@1.0.2
+
+## 1.3.0
+
+### Minor Changes
+
+- 201206132da: Introduced a new config source system to replace `loadConfig`. There is a new `ConfigSource` interface along with utilities provided by `ConfigSources`, as well as a number of built-in configuration source implementations. The new system is more flexible and makes it easier to create new and reusable sources of configuration, such as loading configuration from secret providers.
+
+  The following is an example of how to load configuration using the default behavior:
+
+  ```ts
+  const source = ConfigSources.default({
+    argv: options?.argv,
+    remote: options?.remote,
+  });
+  const config = await ConfigSources.toConfig(source);
+  ```
+
+  The `ConfigSource` interface looks like this:
+
+  ```ts
+  export interface ConfigSource {
+    readConfigData(options?: ReadConfigDataOptions): AsyncConfigSourceIterator;
+  }
+  ```
+
+  It is best implemented using an async iterator:
+
+  ```ts
+  class MyConfigSource implements ConfigSource {
+    async *readConfigData() {
+      yield {
+        config: [
+          {
+            context: 'example',
+            data: { backend: { baseUrl: 'http://localhost' } },
+          },
+        ],
+      };
+    }
+  }
+  ```
+
+### Patch Changes
+
+- 7c116bcac7f: Fixed the way that some request errors are thrown
+- 473db605a4f: Added a new `noUndeclaredProperties` option to `SchemaLoader` to support enforcing that there are no extra keys when verifying config.
+- Updated dependencies
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.7
+  - @backstage/errors@1.1.5
+  - @backstage/types@1.0.2
+
+## 1.3.0-next.0
+
+### Minor Changes
+
+- 201206132da: Introduced a new config source system to replace `loadConfig`. There is a new `ConfigSource` interface along with utilities provided by `ConfigSources`, as well as a number of built-in configuration source implementations. The new system is more flexible and makes it easier to create new and reusable sources of configuration, such as loading configuration from secret providers.
+
+  The following is an example of how to load configuration using the default behavior:
+
+  ```ts
+  const source = ConfigSources.default({
+    argv: options?.argv,
+    remote: options?.remote,
+  });
+  const config = await ConfigSources.toConfig(source);
+  ```
+
+  The `ConfigSource` interface looks like this:
+
+  ```ts
+  export interface ConfigSource {
+    readConfigData(options?: ReadConfigDataOptions): AsyncConfigSourceIterator;
+  }
+  ```
+
+  It is best implemented using an async iterator:
+
+  ```ts
+  class MyConfigSource implements ConfigSource {
+    async *readConfigData() {
+      yield {
+        config: [
+          {
+            context: 'example',
+            data: { backend: { baseUrl: 'http://localhost' } },
+          },
+        ],
+      };
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.7
+  - @backstage/errors@1.1.5
+  - @backstage/types@1.0.2
+
+## 1.2.0
+
+### Minor Changes
+
+- c791fcd96b9: Configuration validation is now more permissive when it comes to config whose values are `string` but whose schemas declare them to be `boolean` or `number`.
+
+  For example, configuration was previously marked invalid when a string `'true'` was set on a property expecting type `boolean` or a string `'146'` was set on a property expecting type `number` (as when providing configuration via variable substitution sourced from environment variables). Now, such configurations will be considered valid and their values will be coerced to the right type at read-time.
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.7
+  - @backstage/errors@1.1.5
+  - @backstage/types@1.0.2
+
+## 1.1.9
+
+### Patch Changes
+
+- 52b0022dab7: Updated dependency `msw` to `^1.0.0`.
+- 482dae5de1c: Updated link to docs.
+- Updated dependencies
+  - @backstage/errors@1.1.5
+  - @backstage/cli-common@0.1.12
+  - @backstage/config@1.0.7
+  - @backstage/types@1.0.2
+
+## 1.1.9-next.0
+
+### Patch Changes
+
+- 52b0022dab7: Updated dependency `msw` to `^1.0.0`.
+- 482dae5de1c: Updated link to docs.
+- Updated dependencies
+  - @backstage/errors@1.1.5-next.0
+  - @backstage/cli-common@0.1.12-next.0
+  - @backstage/config@1.0.7-next.0
+  - @backstage/types@1.0.2
+
+## 1.1.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/config@1.0.6
+  - @backstage/cli-common@0.1.11
+  - @backstage/errors@1.1.4
+  - @backstage/types@1.0.2
+
+## 1.1.8-next.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/config@1.0.6-next.0
+  - @backstage/cli-common@0.1.11
+  - @backstage/errors@1.1.4
+  - @backstage/types@1.0.2
+
+## 1.1.7
+
+### Patch Changes
+
+- 3280711113: Updated dependency `msw` to `^0.49.0`.
+- 40e7e6e1a2: Updated dependency `typescript-json-schema` to `^0.55.0`.
+- Updated dependencies
+  - @backstage/errors@1.1.4
+  - @backstage/types@1.0.2
+  - @backstage/cli-common@0.1.11
+  - @backstage/config@1.0.5
+
+## 1.1.7-next.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.11-next.0
+  - @backstage/config@1.0.5-next.1
+  - @backstage/errors@1.1.4-next.1
+  - @backstage/types@1.0.2-next.1
+
+## 1.1.7-next.1
+
+### Patch Changes
+
+- 40e7e6e1a2: Updated dependency `typescript-json-schema` to `^0.55.0`.
+- Updated dependencies
+  - @backstage/types@1.0.2-next.1
+  - @backstage/config@1.0.5-next.1
+  - @backstage/cli-common@0.1.10
+  - @backstage/errors@1.1.4-next.1
+
+## 1.1.7-next.0
+
+### Patch Changes
+
+- 3280711113: Updated dependency `msw` to `^0.49.0`.
+- Updated dependencies
+  - @backstage/types@1.0.2-next.0
+  - @backstage/cli-common@0.1.10
+  - @backstage/config@1.0.5-next.0
+  - @backstage/errors@1.1.4-next.0
+
+## 1.1.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/types@1.0.1
+  - @backstage/cli-common@0.1.10
+  - @backstage/config@1.0.4
+  - @backstage/errors@1.1.3
+
+## 1.1.6-next.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/types@1.0.1-next.0
+  - @backstage/cli-common@0.1.10
+  - @backstage/config@1.0.4-next.0
+  - @backstage/errors@1.1.3-next.0
+
+## 1.1.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.10
+  - @backstage/config@1.0.3
+  - @backstage/errors@1.1.2
+  - @backstage/types@1.0.0
+
+## 1.1.5-next.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.10
+  - @backstage/config@1.0.3-next.2
+  - @backstage/errors@1.1.2-next.2
+  - @backstage/types@1.0.0
+
+## 1.1.5-next.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.10
+  - @backstage/config@1.0.3-next.1
+  - @backstage/errors@1.1.2-next.1
+  - @backstage/types@1.0.0
+
+## 1.1.5-next.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.10
+  - @backstage/config@1.0.3-next.0
+  - @backstage/errors@1.1.2-next.0
+  - @backstage/types@1.0.0
+
+## 1.1.4
+
+### Patch Changes
+
+- 5ecca7e44b: No longer log when reloading remote config.
+- 7d47def9c4: Removed dependency on `@types/jest`.
+- 667d917488: Updated dependency `msw` to `^0.47.0`.
+- 87ec2ba4d6: Updated dependency `msw` to `^0.46.0`.
+- bf5e9030eb: Updated dependency `msw` to `^0.45.0`.
+- Updated dependencies
+  - @backstage/cli-common@0.1.10
+  - @backstage/config@1.0.2
+  - @backstage/errors@1.1.1
+
+## 1.1.4-next.2
+
+### Patch Changes
+
+- 5ecca7e44b: No longer log when reloading remote config.
+- 7d47def9c4: Removed dependency on `@types/jest`.
+- Updated dependencies
+  - @backstage/cli-common@0.1.10-next.0
+  - @backstage/config@1.0.2-next.0
+  - @backstage/errors@1.1.1-next.0
+
+## 1.1.4-next.1
+
+### Patch Changes
+
+- 667d917488: Updated dependency `msw` to `^0.47.0`.
+- 87ec2ba4d6: Updated dependency `msw` to `^0.46.0`.
+
+## 1.1.4-next.0
+
+### Patch Changes
+
+- bf5e9030eb: Updated dependency `msw` to `^0.45.0`.
+
+## 1.1.3
+
+### Patch Changes
+
+- bcada7cd9f: From now on the `$file` placeholder will trim the whitespaces and newline characters from the end of the file it reads.
+- a70869e775: Updated dependency `msw` to `^0.43.0`.
+- 72622d9143: Updated dependency `yaml` to `^2.0.0`.
+- 8006d0f9bf: Updated dependency `msw` to `^0.44.0`.
+- a3acec8819: Updated dependency `typescript-json-schema` to `^0.54.0`.
+- Updated dependencies
+  - @backstage/errors@1.1.0
+
+## 1.1.3-next.1
+
+### Patch Changes
+
+- a70869e775: Updated dependency `msw` to `^0.43.0`.
+- 72622d9143: Updated dependency `yaml` to `^2.0.0`.
+- a3acec8819: Updated dependency `typescript-json-schema` to `^0.54.0`.
+
+## 1.1.3-next.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/errors@1.1.0-next.0
+
+## 1.1.2
+
+### Patch Changes
+
+- 8f7b1835df: Updated dependency `msw` to `^0.41.0`.
+
+## 1.1.2-next.0
+
+### Patch Changes
+
+- 8f7b1835df: Updated dependency `msw` to `^0.41.0`.
+
+## 1.1.1
+
+### Patch Changes
+
+- cfc0f19699: Updated dependency `fs-extra` to `10.1.0`.
+- 9e8ef53498: Handle empty config files gracefully
+- Updated dependencies
+  - @backstage/cli-common@0.1.9
+  - @backstage/config@1.0.1
+
+## 1.1.1-next.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/cli-common@0.1.9-next.0
+  - @backstage/config@1.0.1-next.0
+
+## 1.1.1-next.0
+
+### Patch Changes
+
+- cfc0f19699: Updated dependency `fs-extra` to `10.1.0`.
+- 9e8ef53498: Handle empty config files gracefully
+
 ## 1.1.0
 
 ### Minor Changes

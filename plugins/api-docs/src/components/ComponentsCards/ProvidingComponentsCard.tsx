@@ -28,16 +28,17 @@ import React from 'react';
 import {
   CodeSnippet,
   InfoCard,
+  InfoCardVariants,
   Link,
   Progress,
   WarningPanel,
 } from '@backstage/core-components';
 
-type Props = {
-  variant?: 'gridItem';
-};
-
-export const ProvidingComponentsCard = ({ variant = 'gridItem' }: Props) => {
+/** @public */
+export const ProvidingComponentsCard = (props: {
+  variant?: InfoCardVariants;
+}) => {
+  const { variant = 'gridItem' } = props;
   const { entity } = useEntity();
   const { entities, loading, error } = useRelatedEntities(entity, {
     type: RELATION_API_PROVIDED_BY,

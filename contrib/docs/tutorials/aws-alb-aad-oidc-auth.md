@@ -48,7 +48,7 @@ Once you've saved the action, you should see an authentication flow be triggered
 ### Frontend
 
 The Backstage App needs a SignInPage when authentication is required.
-When using ALB authentication Backstage will only be loaded once the user has successfully authenticated; we won't need to display a SignIn page, however we will need to create a dummy SignIn component that can refresh the token.
+When using ALB authentication Backstage will only be loaded once the user has successfully authenticated; we won't need to display a SignIn page, however we will need to create a placeholder SignIn component that can refresh the token.
 
 - edit `packages/app/src/App.tsx`
 - import the following two additional definitions from `@backstage/core-plugin-api`: `useApi`, `configApiRef`; these will be used to check whether Backstage is running locally or behind an ALB
@@ -58,8 +58,9 @@ When using ALB authentication Backstage will only be loaded once the user has su
 import React from 'react';
 import { UserIdentity } from '@backstage/core-components';
 import { SignInPageProps } from '@backstage/core-app-api';
+import { useApi, configApiRef } from '@backstage/core-plugin-api';
 
-const DummySignInComponent: any = (props: SignInPageProps) => {
+const SampleSignInComponent: any = (props: SignInPageProps) => {
   const [error, setError] = React.useState<string | undefined>();
   const config = useApi(configApiRef);
   React.useEffect(() => {
@@ -90,8 +91,8 @@ const DummySignInComponent: any = (props: SignInPageProps) => {
             },
           }),
         );
-      } catch (err) {
-        setError(err.message);
+      } catch (err: any) {
+        setError(err.message as string);
       }
     }
   }, [config]);
@@ -102,13 +103,13 @@ const DummySignInComponent: any = (props: SignInPageProps) => {
 };
 ```
 
-- add `DummySignInComponent` as `SignInPage`:
+- add `SampleSignInComponent` as `SignInPage`:
 
 ```ts
 const app = createApp({
   ...
   components: {
-    SignInPage: DummySignInComponent,
+    SignInPage: SampleSignInComponent,
     ...
   },
   ...
@@ -122,10 +123,7 @@ When using ALB auth you can configure it as described [here](https://backstage.i
 - replace the content of `packages/backend/plugin/auth.ts` with the below and tweak it according to your needs.
 
 ```ts
-import {
-  createRouter,
-  createAwsAlbProvider,
-} from '@backstage/plugin-auth-backend';
+import { createRouter, providers } from '@backstage/plugin-auth-backend';
 import {
   DEFAULT_NAMESPACE,
   stringifyEntityRef,
@@ -138,14 +136,16 @@ export default async function createPlugin({
   database,
   config,
   discovery,
+  tokenManager,
 }: PluginEnvironment): Promise<Router> {
   return await createRouter({
     logger,
     config,
     database,
     discovery,
+    tokenManager,
     providerFactories: {
-      awsalb: createAwsAlbProvider({
+      awsalb: providers.awsAlb.create({
         authHandler: async ({ fullProfile }) => {
           let email: string | undefined = undefined;
           if (fullProfile.emails && fullProfile.emails.length > 0) {
@@ -171,25 +171,29 @@ export default async function createPlugin({
           };
         },
         signIn: {
-          resolver: async ({ profile: { email } }, ctx) => {
-            const [id] = email?.split('@') ?? '';
-            // Fetch from an external system that returns entity claims like:
-            // ['user:default/breanna.davison', ...]
-            const userEntityRef = stringifyEntityRef({
+          resolver: async ({ profile }, ctx) => {
+            if (!profile.email) {
+              throw new Error('Profile contained no email');
+            }
+
+            const [id] = profile.email.split('@');
+            if (!id) {
+              throw new Error('Invalid email format');
+            }
+
+            const userRef = stringifyEntityRef({
               kind: 'User',
-              namespace: DEFAULT_NAMESPACE,
               name: id,
+              namespace: DEFAULT_NAMESPACE,
             });
 
-            // Resolve group membership from the Backstage catalog
-            const fullEnt =
-              await ctx.catalogIdentityClient.resolveCatalogMembership({
-                entityRefs: [id].concat([userEntityRef]),
-                logger: ctx.logger,
-              });
-            const token = await ctx.tokenIssuer.issueToken({
-              claims: { sub: userEntityRef, ent: fullEnt },
+            const { token } = await ctx.issueToken({
+              claims: {
+                sub: userRef,
+                ent: [userRef],
+              },
             });
+
             return { id, token };
           },
         },

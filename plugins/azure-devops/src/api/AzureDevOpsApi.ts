@@ -18,8 +18,11 @@ import {
   BuildRun,
   BuildRunOptions,
   DashboardPullRequest,
+  GitTag,
   PullRequest,
   PullRequestOptions,
+  Readme,
+  ReadmeConfig,
   RepoBuild,
   RepoBuildOptions,
   Team,
@@ -27,16 +30,23 @@ import {
 
 import { createApiRef } from '@backstage/core-plugin-api';
 
+/** @public */
 export const azureDevOpsApiRef = createApiRef<AzureDevOpsApi>({
   id: 'plugin.azure-devops.service',
 });
 
+/** @public */
 export interface AzureDevOpsApi {
   getRepoBuilds(
     projectName: string,
     repoName: string,
     options?: RepoBuildOptions,
   ): Promise<{ items: RepoBuild[] }>;
+
+  getGitTags(
+    projectName: string,
+    repoName: string,
+  ): Promise<{ items: GitTag[] }>;
 
   getPullRequests(
     projectName: string,
@@ -58,4 +68,6 @@ export interface AzureDevOpsApi {
     definitionName?: string,
     options?: BuildRunOptions,
   ): Promise<{ items: BuildRun[] }>;
+
+  getReadme(opts: ReadmeConfig): Promise<Readme>;
 }

@@ -28,6 +28,7 @@ and modify the `techInsights.ts` file to contain a reference to the FactCheckers
    config: env.config,
    database: env.database,
    discovery: env.discovery,
+   tokenManager: env.tokenManager,
    factRetrievers: [myFactRetrieverRegistration],
 +  factCheckerFactory: myFactCheckerFactory
  });
@@ -84,6 +85,11 @@ export const exampleCheck: TechInsightJsonRuleCheck = {
   },
 };
 ```
+
+### More than one `factIds` for a check.
+
+When more than one is supplied, the requested fact **MUST** be present in at least one of the fact retrievers.
+The order of the fact retrievers defined in the `factIds` array has no bearing on the checks, the check will merge all facts from the various retrievers, and then check against latest fact .
 
 # Custom operators
 

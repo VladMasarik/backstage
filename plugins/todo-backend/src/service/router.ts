@@ -17,16 +17,13 @@
 import { CompoundEntityRef, parseEntityRef } from '@backstage/catalog-model';
 import { InputError } from '@backstage/errors';
 import express from 'express';
-import Router from 'express-promise-router';
-import { TodoService } from './types';
-
-const TODO_FIELDS = [
-  'text',
-  'tag',
-  'author',
-  'viewUrl',
-  'repoFilePath',
-] as const;
+import { type TodoService, TODO_FIELDS } from './types';
+import {
+  getBearerToken,
+  parseFilterParam,
+  parseOrderByParam,
+} from '../lib/utils';
+import { createOpenApiRouter } from '../schema/openapi.generated';
 
 /** @public */
 export interface RouterOptions {
@@ -37,14 +34,12 @@ export interface RouterOptions {
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
+  const router = await createOpenApiRouter();
+  router.use(express.json());
   const { todoService } = options;
 
-  const router = Router();
-  router.use(express.json());
-
   router.get('/v1/todos', async (req, res) => {
-    const offset = parseIntegerParam(req.query.offset, 'offset query');
-    const limit = parseIntegerParam(req.query.limit, 'limit query');
+    const { offset, limit } = req.query;
     const orderBy = parseOrderByParam(req.query.orderBy, TODO_FIELDS);
     const filters = parseFilterParam(req.query.filter, TODO_FIELDS);
 
@@ -77,94 +72,4 @@ export async function createRouter(
   });
 
   return router;
-}
-
-export function parseIntegerParam(
-  str: unknown,
-  ctx: string,
-): number | undefined {
-  if (str === undefined) {
-    return undefined;
-  }
-  if (typeof str !== 'string') {
-    throw new InputError(`invalid ${ctx}, must be a string`);
-  }
-  const parsed = parseInt(str, 10);
-  if (!Number.isInteger(parsed) || String(parsed) !== str) {
-    throw new InputError(`invalid ${ctx}, not an integer`);
-  }
-  return parsed;
-}
-
-export function parseOrderByParam<T extends readonly string[]>(
-  str: unknown,
-  allowedFields: T,
-): { field: T[number]; direction: 'asc' | 'desc' } | undefined {
-  if (str === undefined) {
-    return undefined;
-  }
-  if (typeof str !== 'string') {
-    throw new InputError(`invalid orderBy query, must be a string`);
-  }
-  const [field, direction] = str.split('=');
-  if (!field) {
-    throw new InputError(`invalid orderBy query, field name is empty`);
-  }
-  if (direction !== 'asc' && direction !== 'desc') {
-    throw new InputError(
-      `invalid orderBy query, order direction must be 'asc' or 'desc'`,
-    );
-  }
-
-  if (field && !allowedFields.includes(field)) {
-    throw new InputError(
-      `invalid orderBy field, must be one of ${allowedFields.join(', ')}`,
-    );
-  }
-  return { field, direction };
-}
-
-export function parseFilterParam<T extends readonly string[]>(
-  str: unknown,
-  allowedFields: T,
-): { field: T[number]; value: string }[] | undefined {
-  if (str === undefined) {
-    return undefined;
-  }
-
-  const filters = new Array<{ field: T[number]; value: string }>();
-
-  const strs = [str].flat();
-  for (const filterStr of strs) {
-    if (typeof filterStr !== 'string') {
-      throw new InputError(
-        `invalid filter query, must be a string or list of strings`,
-      );
-    }
-    const splitIndex = filterStr.indexOf('=');
-    if (splitIndex <= 0) {
-      throw new InputError(
-        `invalid filter query, must separate field from value using '='`,
-      );
-    }
-
-    const field = filterStr.slice(0, splitIndex);
-    if (!allowedFields.includes(field)) {
-      throw new InputError(
-        `invalid filter field, must be one of ${allowedFields.join(', ')}`,
-      );
-    }
-
-    const value = filterStr.slice(splitIndex + 1);
-    if (!value) {
-      throw new InputError(`invalid filter query, value may not be empty`);
-    }
-    filters.push({ field, value });
-  }
-
-  return filters;
-}
-
-function getBearerToken(header?: string): string | undefined {
-  return header?.match(/Bearer\s+(\S+)/i)?.[1];
 }

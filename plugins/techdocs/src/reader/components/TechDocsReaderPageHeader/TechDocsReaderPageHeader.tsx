@@ -17,7 +17,9 @@
 import React, { PropsWithChildren, useEffect } from 'react';
 import Helmet from 'react-helmet';
 
+import { Grid } from '@material-ui/core';
 import { Skeleton } from '@material-ui/lab';
+import { useTheme } from '@material-ui/core/styles';
 import CodeIcon from '@material-ui/icons/Code';
 
 import {
@@ -35,6 +37,8 @@ import {
 import { RELATION_OWNED_BY, CompoundEntityRef } from '@backstage/catalog-model';
 import { Header, HeaderLabel } from '@backstage/core-components';
 import { useRouteRef, configApiRef, useApi } from '@backstage/core-plugin-api';
+
+import { capitalize } from 'lodash';
 
 import { rootRouteRef } from '../../../routes';
 
@@ -61,6 +65,11 @@ export type TechDocsReaderPageHeaderProps = PropsWithChildren<{
 export const TechDocsReaderPageHeader = (
   props: TechDocsReaderPageHeaderProps,
 ) => {
+  const {
+    palette: {
+      common: { white },
+    },
+  } = useTheme();
   const { children } = props;
   const addons = useTechDocsAddons();
   const configApi = useApi(configApiRef);
@@ -71,27 +80,24 @@ export const TechDocsReaderPageHeader = (
     subtitle,
     setSubtitle,
     entityRef,
-    metadata: { value: metadata },
-    entityMetadata: { value: entityMetadata },
+    metadata: { value: metadata, loading: metadataLoading },
+    entityMetadata: { value: entityMetadata, loading: entityMetadataLoading },
   } = useTechDocsReaderPage();
 
   useEffect(() => {
     if (!metadata) return;
-    setTitle(prevTitle => {
-      const { site_name } = metadata;
-      return prevTitle || site_name;
-    });
-    setSubtitle(prevSubtitle => {
+    setTitle(metadata.site_name);
+    setSubtitle(() => {
       let { site_description } = metadata;
       if (!site_description || site_description === 'None') {
-        site_description = 'Home';
+        site_description = '';
       }
-      return prevSubtitle || site_description;
+      return site_description;
     });
   }, [metadata, setTitle, setSubtitle]);
 
   const appTitle = configApi.getOptional('app.title') || 'Backstage';
-  const tabTitle = [subtitle, title, appTitle].filter(Boolean).join(' | ');
+  const tabTitle = [title, subtitle, appTitle].filter(Boolean).join(' | ');
 
   const { locationMetadata, spec } = entityMetadata || {};
   const lifecycle = spec?.lifecycle;
@@ -105,11 +111,12 @@ export const TechDocsReaderPageHeader = (
   const labels = (
     <>
       <HeaderLabel
-        label="Component"
+        label={capitalize(entityMetadata?.kind || 'entity')}
         value={
           <EntityRefLink
             color="inherit"
             entityRef={entityRef}
+            title={entityMetadata?.metadata.title}
             defaultKind="Component"
           />
         }
@@ -133,25 +140,38 @@ export const TechDocsReaderPageHeader = (
         <HeaderLabel
           label=""
           value={
-            <a
-              href={locationMetadata.target}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Grid
+              container
+              direction="column"
+              alignItems="center"
+              style={{ color: white }}
             >
-              <CodeIcon style={{ marginTop: '-25px', fill: '#fff' }} />
-            </a>
+              <Grid style={{ padding: 0 }} item>
+                <CodeIcon style={{ marginTop: '-25px' }} />
+              </Grid>
+              <Grid style={{ padding: 0 }} item>
+                Source
+              </Grid>
+            </Grid>
           }
+          url={locationMetadata.target}
         />
       ) : null}
     </>
   );
+
+  // If there is no entity or techdocs metadata, there's no reason to show the
+  // header (hides the header on 404 error pages).
+  const noEntMetadata = !entityMetadataLoading && entityMetadata === undefined;
+  const noTdMetadata = !metadataLoading && metadata === undefined;
+  if (noEntMetadata || noTdMetadata) return null;
 
   return (
     <Header
       type="Documentation"
       typeLink={docsRootLink}
       title={title || skeleton}
-      subtitle={subtitle || skeleton}
+      subtitle={subtitle === '' ? undefined : subtitle || skeleton}
     >
       <Helmet titleTemplate="%s">
         <title>{tabTitle}</title>

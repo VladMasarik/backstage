@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ComponentType } from 'react';
+import { ComponentType, PropsWithChildren } from 'react';
 import {
   AnyApiFactory,
   AppTheme,
@@ -24,6 +24,7 @@ import {
   SubRouteRef,
   ExternalRouteRef,
   IdentityApi,
+  FeatureFlag,
 } from '@backstage/core-plugin-api';
 import { AppConfig } from '@backstage/config';
 
@@ -32,33 +33,33 @@ import { AppConfig } from '@backstage/config';
  *
  * @public
  */
-export type BootErrorPageProps = {
+export type BootErrorPageProps = PropsWithChildren<{
   step: 'load-config' | 'load-chunk';
   error: Error;
-};
+}>;
 
 /**
  * Props for the `SignInPage` component of {@link AppComponents}.
  *
  * @public
  */
-export type SignInPageProps = {
+export type SignInPageProps = PropsWithChildren<{
   /**
-   * Set the IdentityApi on successful sign in. This should only be called once.
+   * Set the IdentityApi on successful sign-in. This should only be called once.
    */
   onSignInSuccess(identityApi: IdentityApi): void;
-};
+}>;
 
 /**
  * Props for the fallback error boundary.
  *
  * @public
  */
-export type ErrorBoundaryFallbackProps = {
+export type ErrorBoundaryFallbackProps = PropsWithChildren<{
   plugin?: BackstagePlugin;
   error: Error;
   resetError: () => void;
-};
+}>;
 
 /**
  * A set of replaceable core components that are part of every Backstage app.
@@ -66,12 +67,12 @@ export type ErrorBoundaryFallbackProps = {
  * @public
  */
 export type AppComponents = {
-  NotFoundErrorPage: ComponentType<{}>;
+  NotFoundErrorPage: ComponentType<PropsWithChildren<{}>>;
   BootErrorPage: ComponentType<BootErrorPageProps>;
-  Progress: ComponentType<{}>;
-  Router: ComponentType<{}>;
+  Progress: ComponentType<PropsWithChildren<{}>>;
+  Router: ComponentType<PropsWithChildren<{ basename?: string }>>;
   ErrorBoundaryFallback: ComponentType<ErrorBoundaryFallbackProps>;
-  ThemeProvider?: ComponentType<{}>;
+  ThemeProvider?: ComponentType<PropsWithChildren<{}>>;
 
   /**
    * An optional sign-in page that will be rendered instead of the AppRouter at startup.
@@ -206,12 +207,17 @@ export type AppOptions = {
    * A list of all plugins to include in the app.
    */
   plugins?: Array<
-    BackstagePlugin<any, any> & {
+    BackstagePlugin & {
       output?(): Array<
         { type: 'feature-flag'; name: string } | { type: string }
       >; // support for old plugins
     }
   >;
+
+  /**
+   * Application level feature flags.
+   */
+  featureFlags?: (FeatureFlag & Omit<FeatureFlag, 'pluginId'>)[];
 
   /**
    * Supply components to the app to override the default ones.
@@ -230,21 +236,13 @@ export type AppOptions = {
    *   title: 'Light Theme',
    *   variant: 'light',
    *   icon: <LightIcon />,
-   *   Provider: ({ children }) => (
-   *     <ThemeProvider theme={lightTheme}>
-   *       <CssBaseline>{children}</CssBaseline>
-   *     </ThemeProvider>
-   *   ),
+   *   Provider: ({ children }) => <UnifiedThemeProvider theme={themes.light} />,
    * }, {
    *   id: 'dark',
    *   title: 'Dark Theme',
    *   variant: 'dark',
    *   icon: <DarkIcon />,
-   *   Provider: ({ children }) => (
-   *     <ThemeProvider theme={darkTheme}>
-   *       <CssBaseline>{children}</CssBaseline>
-   *     </ThemeProvider>
-   *   ),
+   *   Provider: ({ children }) => <UnifiedThemeProvider theme={themes.dark} />,
    * }]
    * ```
    */
@@ -291,7 +289,7 @@ export type BackstageApp = {
   /**
    * Returns all plugins registered for the app.
    */
-  getPlugins(): BackstagePlugin<any, any>[];
+  getPlugins(): BackstagePlugin[];
 
   /**
    * Get a common or custom icon for this app.
@@ -299,16 +297,45 @@ export type BackstageApp = {
   getSystemIcon(key: string): IconComponent | undefined;
 
   /**
+   * Creates the root component that renders the entire app.
+   *
+   * @remarks
+   *
+   * This method must only be called once, and you have to provide it the entire
+   * app element tree. The element tree will be analyzed to discover plugins,
+   * routes, and other app features. The returned component will render all
+   * of the app elements wrapped within the app context provider.
+   *
+   * @example
+   * ```tsx
+   * export default app.createRoot(
+   *   <>
+   *     <AlertDisplay />
+   *     <OAuthRequestDialog />
+   *     <AppRouter>
+   *       <Root>{routes}</Root>
+   *     </AppRouter>
+   *   </>,
+   * );
+   * ```
+   */
+  createRoot(element: JSX.Element): ComponentType<PropsWithChildren<{}>>;
+
+  /**
    * Provider component that should wrap the Router created with getRouter()
    * and any other components that need to be within the app context.
+   *
+   * @deprecated Use {@link BackstageApp.createRoot} instead.
    */
-  getProvider(): ComponentType<{}>;
+  getProvider(): ComponentType<PropsWithChildren<{}>>;
 
   /**
    * Router component that should wrap the App Routes create with getRoutes()
    * and any other components that should only be available while signed in.
+   *
+   * @deprecated Import and use the {@link AppRouter} component from `@backstage/core-app-api` instead
    */
-  getRouter(): ComponentType<{}>;
+  getRouter(): ComponentType<PropsWithChildren<{}>>;
 };
 
 /**
@@ -321,12 +348,17 @@ export type AppContext = {
   /**
    * Get a list of all plugins that are installed in the app.
    */
-  getPlugins(): BackstagePlugin<any, any>[];
+  getPlugins(): BackstagePlugin[];
 
   /**
    * Get a common or custom icon for this app.
    */
   getSystemIcon(key: string): IconComponent | undefined;
+
+  /**
+   * Get a list of common and custom icons for this app.
+   */
+  getSystemIcons(): Record<string, IconComponent>;
 
   /**
    * Get the components registered for various purposes in the app.

@@ -16,18 +16,15 @@
 
 import { ConfigReader } from '@backstage/config';
 import Keyv from 'keyv';
-/* @ts-expect-error */
-import KeyvMemcache from 'keyv-memcache';
-/* @ts-expect-error */
+import KeyvMemcache from '@keyv/memcache';
 import KeyvRedis from '@keyv/redis';
 import { DefaultCacheClient } from './CacheClient';
 import { CacheManager } from './CacheManager';
-import { NoStore } from './NoStore';
 
 jest.createMockFromModule('keyv');
 jest.mock('keyv');
-jest.createMockFromModule('keyv-memcache');
-jest.mock('keyv-memcache');
+jest.createMockFromModule('@keyv/memcache');
+jest.mock('@keyv/memcache');
 jest.createMockFromModule('@keyv/redis');
 jest.mock('@keyv/redis');
 jest.mock('./CacheClient', () => {
@@ -66,7 +63,7 @@ describe('CacheManager', () => {
       const config = new ConfigReader({ backend: {} });
       expect(() => {
         CacheManager.fromConfig(config);
-      }).not.toThrowError();
+      }).not.toThrow();
     });
 
     it('throws on unknown cache store', () => {
@@ -75,7 +72,7 @@ describe('CacheManager', () => {
       });
       expect(() => {
         CacheManager.fromConfig(config);
-      }).toThrowError();
+      }).toThrow();
     });
   });
 
@@ -96,7 +93,7 @@ describe('CacheManager', () => {
 
       const client = DefaultCacheClient as jest.Mock;
       const mockCalls = client.mock.calls.splice(-1);
-      const realClient = mockCalls[0][0].client as Keyv;
+      const realClient = mockCalls[0][0] as Keyv;
       expect(realClient.on).toHaveBeenCalledWith('error', expect.any(Function));
     });
 
@@ -121,17 +118,23 @@ describe('CacheManager', () => {
   });
 
   describe('CacheManager.forPlugin stores', () => {
-    it('returns none client when no cache is configured', () => {
+    it('returns memory client when no cache is configured', () => {
       const manager = CacheManager.fromConfig(
         new ConfigReader({ backend: {} }),
       );
+      const expectedTtl = 3600;
       const expectedNamespace = 'test-plugin';
-      manager.forPlugin(expectedNamespace).getClient();
+      manager
+        .forPlugin(expectedNamespace)
+        .getClient({ defaultTtl: expectedTtl });
 
       const cache = Keyv as unknown as jest.Mock;
       const mockCalls = cache.mock.calls.splice(-1);
       const callArgs = mockCalls[0];
-      expect(callArgs[0].store).toBeInstanceOf(NoStore);
+      expect(callArgs[0]).toMatchObject({
+        ttl: expectedTtl,
+        namespace: expectedNamespace,
+      });
     });
 
     it('returns memory client when explicitly configured', () => {
@@ -188,7 +191,7 @@ describe('CacheManager', () => {
         ttl: expectedTtl,
       });
       expect(mockCacheCalls[0][0].store).toBeInstanceOf(KeyvMemcache);
-      const memcache = KeyvMemcache as jest.Mock;
+      const memcache = KeyvMemcache as unknown as jest.Mock;
       const mockMemcacheCalls = memcache.mock.calls.splice(-1);
       expect(mockMemcacheCalls[0][0]).toEqual(expectedHost);
     });
@@ -215,7 +218,7 @@ describe('CacheManager', () => {
       ttl: expectedTtl,
     });
     expect(mockCacheCalls[0][0].store).toBeInstanceOf(KeyvRedis);
-    const redis = KeyvRedis as jest.Mock;
+    const redis = KeyvRedis as unknown as jest.Mock;
     const mockRedisCalls = redis.mock.calls.splice(-1);
     expect(mockRedisCalls[0][0]).toEqual(redisConnection);
   });
@@ -235,14 +238,17 @@ describe('CacheManager', () => {
       // Retrieve the error handler attached to the cache client.
       const client = DefaultCacheClient as jest.Mock;
       const mockCalls = client.mock.calls.splice(-1);
-      const realClient = mockCalls[0][0].client as Keyv;
+      const realClient = mockCalls[0][0] as Keyv;
       const realOnError = realClient.on as jest.Mock;
       const realHandler = realOnError.mock.calls.splice(-1)[0][1];
 
       // Invoke the actual error handler.
       const expectedError = new Error('some error');
       realHandler(expectedError);
-      expect(mockLogger.error).toHaveBeenCalledWith(expectedError);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to create cache client',
+        expectedError,
+      );
     });
 
     it('calls provided handler', () => {
@@ -258,7 +264,7 @@ describe('CacheManager', () => {
       // Retrieve the error handler attached to the cache client.
       const client = DefaultCacheClient as jest.Mock;
       const mockCalls = client.mock.calls.splice(-1);
-      const realClient = mockCalls[0][0].client as Keyv;
+      const realClient = mockCalls[0][0] as Keyv;
       const realOnError = realClient.on as jest.Mock;
       const realHandler = realOnError.mock.calls.splice(-1)[0][1];
 

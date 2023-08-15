@@ -18,7 +18,11 @@ import { useApi } from '@backstage/core-plugin-api';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act, renderHook } from '@testing-library/react-hooks';
 import React from 'react';
-import { SearchContextProvider, useSearch } from './SearchContext';
+import {
+  SearchContextProvider,
+  useSearch,
+  useSearchContextCheck,
+} from './SearchContext';
 
 jest.mock('@backstage/core-plugin-api', () => ({
   ...jest.requireActual('@backstage/core-plugin-api'),
@@ -36,8 +40,8 @@ describe('SearchContext', () => {
 
   const initialState = {
     term: '',
-    filters: {},
     types: ['*'],
+    filters: {},
   };
 
   beforeEach(() => {
@@ -71,6 +75,26 @@ describe('SearchContext', () => {
     );
   });
 
+  it('Checks whether context is set', async () => {
+    const hook = renderHook(() => useSearchContextCheck());
+
+    expect(hook.result.current).toEqual(false);
+
+    const { result, waitForNextUpdate } = renderHook(
+      () => useSearchContextCheck(),
+      {
+        wrapper,
+        initialProps: {
+          initialState,
+        },
+      },
+    );
+
+    await waitForNextUpdate();
+
+    expect(result.current).toEqual(true);
+  });
+
   it('Uses initial state values', async () => {
     const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
       wrapper,
@@ -84,40 +108,112 @@ describe('SearchContext', () => {
     expect(result.current).toEqual(expect.objectContaining(initialState));
   });
 
-  it('Resets cursor when term is set (and different from previous)', async () => {
-    const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
-      wrapper,
-      initialProps: {
-        initialState: {
-          ...initialState,
-          pageCursor: 'SOMEPAGE',
+  describe('Resets cursor', () => {
+    it('When term is cleared', async () => {
+      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
+        wrapper,
+        initialProps: {
+          initialState: {
+            ...initialState,
+            term: 'first term',
+            pageCursor: 'SOMEPAGE',
+          },
         },
-      },
+      });
+
+      await waitForNextUpdate();
+
+      expect(result.current.term).toEqual('first term');
+      expect(result.current.pageCursor).toEqual('SOMEPAGE');
+
+      act(() => {
+        result.current.setTerm('');
+      });
+
+      await waitForNextUpdate();
+
+      expect(result.current.pageCursor).toBeUndefined();
     });
 
-    await waitForNextUpdate();
+    it('When term is set (and different from previous)', async () => {
+      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
+        wrapper,
+        initialProps: {
+          initialState: {
+            ...initialState,
+            term: 'first term',
+            pageCursor: 'SOMEPAGE',
+          },
+        },
+      });
 
-    expect(result.current.pageCursor).toEqual('SOMEPAGE');
+      await waitForNextUpdate();
 
-    act(() => {
-      result.current.setTerm('first term');
+      expect(result.current.term).toEqual('first term');
+      expect(result.current.pageCursor).toEqual('SOMEPAGE');
+
+      act(() => {
+        result.current.setTerm('second term');
+      });
+
+      await waitForNextUpdate();
+
+      expect(result.current.pageCursor).toBeUndefined();
     });
 
-    act(() => {
-      result.current.setPageCursor('OTHERPAGE');
+    it('When filters are cleared', async () => {
+      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
+        wrapper,
+        initialProps: {
+          initialState: {
+            ...initialState,
+            term: 'first term',
+            filters: { foo: 'bar' },
+            pageCursor: 'SOMEPAGE',
+          },
+        },
+      });
+
+      await waitForNextUpdate();
+
+      expect(result.current.filters).toEqual({ foo: 'bar' });
+      expect(result.current.pageCursor).toEqual('SOMEPAGE');
+
+      act(() => {
+        result.current.setFilters({});
+      });
+
+      await waitForNextUpdate();
+
+      expect(result.current.pageCursor).toBeUndefined();
     });
 
-    await waitForNextUpdate();
+    it('When filters are set (and different from previous)', async () => {
+      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
+        wrapper,
+        initialProps: {
+          initialState: {
+            ...initialState,
+            term: 'first term',
+            filters: { foo: 'bar' },
+            pageCursor: 'SOMEPAGE',
+          },
+        },
+      });
 
-    expect(result.current.pageCursor).toEqual('OTHERPAGE');
+      await waitForNextUpdate();
 
-    act(() => {
-      result.current.setTerm('second term');
+      expect(result.current.filters).toEqual({ foo: 'bar' });
+      expect(result.current.pageCursor).toEqual('SOMEPAGE');
+
+      act(() => {
+        result.current.setFilters({ foo: 'test' });
+      });
+
+      await waitForNextUpdate();
+
+      expect(result.current.pageCursor).toBeUndefined();
     });
-
-    await waitForNextUpdate();
-
-    expect(result.current.pageCursor).toEqual(undefined);
   });
 
   describe('Performs search (and sets results)', () => {
@@ -140,58 +236,9 @@ describe('SearchContext', () => {
       await waitForNextUpdate();
 
       expect(query).toHaveBeenLastCalledWith({
-        filters: {},
-        types: ['*'],
         term,
-      });
-    });
-
-    it('When filters are set', async () => {
-      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
-        wrapper,
-        initialProps: {
-          initialState,
-        },
-      });
-
-      await waitForNextUpdate();
-
-      const filters = { filter: 'filter' };
-
-      act(() => {
-        result.current.setFilters(filters);
-      });
-
-      await waitForNextUpdate();
-
-      expect(query).toHaveBeenLastCalledWith({
-        filters,
         types: ['*'],
-        term: '',
-      });
-    });
-
-    it('When page is set', async () => {
-      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
-        wrapper,
-        initialProps: {
-          initialState,
-        },
-      });
-
-      await waitForNextUpdate();
-
-      act(() => {
-        result.current.setPageCursor('SOMEPAGE');
-      });
-
-      await waitForNextUpdate();
-
-      expect(query).toHaveBeenLastCalledWith({
         filters: {},
-        types: ['*'],
-        pageCursor: 'SOMEPAGE',
-        term: '',
       });
     });
 
@@ -215,8 +262,85 @@ describe('SearchContext', () => {
 
       expect(query).toHaveBeenLastCalledWith({
         types,
-        filters: {},
         term: '',
+        filters: {},
+      });
+    });
+
+    it('When filters are set', async () => {
+      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
+        wrapper,
+        initialProps: {
+          initialState,
+        },
+      });
+
+      await waitForNextUpdate();
+
+      const filters = { filter: 'filter' };
+
+      act(() => {
+        result.current.setFilters(filters);
+      });
+
+      await waitForNextUpdate();
+
+      expect(query).toHaveBeenLastCalledWith({
+        filters,
+        term: '',
+        types: ['*'],
+      });
+    });
+
+    it('When page limit is set', async () => {
+      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
+        wrapper,
+        initialProps: {
+          initialState,
+        },
+      });
+
+      await waitForNextUpdate();
+
+      const pageLimit = 30;
+
+      act(() => {
+        result.current.setPageLimit(pageLimit);
+      });
+
+      await waitForNextUpdate();
+
+      expect(query).toHaveBeenLastCalledWith({
+        pageLimit,
+        term: '',
+        types: ['*'],
+        filters: {},
+      });
+    });
+
+    it('When page cursor is set', async () => {
+      const { result, waitForNextUpdate } = renderHook(() => useSearch(), {
+        wrapper,
+        initialProps: {
+          initialState,
+        },
+      });
+
+      await waitForNextUpdate();
+
+      const pageCursor = 'SOMEPAGE';
+
+      act(() => {
+        result.current.setPageCursor(pageCursor);
+      });
+
+      await waitForNextUpdate();
+
+      expect(query).toHaveBeenLastCalledWith({
+        pageCursor,
+        term: '',
+        types: ['*'],
+        filters: {},
       });
     });
 
@@ -245,9 +369,9 @@ describe('SearchContext', () => {
       await waitForNextUpdate();
 
       expect(query).toHaveBeenLastCalledWith({
+        term: '',
         types: ['*'],
         filters: {},
-        term: '',
         pageCursor: 'NEXT',
       });
     });
@@ -277,9 +401,9 @@ describe('SearchContext', () => {
       await waitForNextUpdate();
 
       expect(query).toHaveBeenLastCalledWith({
+        term: '',
         types: ['*'],
         filters: {},
-        term: '',
         pageCursor: 'PREVIOUS',
       });
     });

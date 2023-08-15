@@ -28,7 +28,11 @@ import {
   createTemporaryAppFolderTask,
   moveAppTask,
   templatingTask,
+  tryInitGitRepository,
+  readGitConfig,
 } from './lib/tasks';
+
+const DEFAULT_BRANCH = 'master';
 
 export default async (opts: OptionValues): Promise<void> => {
   /* eslint-disable-next-line no-restricted-syntax */
@@ -38,6 +42,7 @@ export default async (opts: OptionValues): Promise<void> => {
     {
       type: 'input',
       name: 'name',
+      default: 'backstage',
       message: chalk.blue('Enter a name for the app [required]'),
       validate: (value: any) => {
         if (!value) {
@@ -49,18 +54,20 @@ export default async (opts: OptionValues): Promise<void> => {
         }
         return true;
       },
-    },
-    {
-      type: 'list',
-      name: 'dbType',
-      message: chalk.blue('Select database for the backend [required]'),
-      choices: ['SQLite', 'PostgreSQL'],
+      when: (a: Answers) => {
+        const envName = process.env.BACKSTAGE_APP_NAME;
+        if (envName) {
+          a.name = envName;
+          return false;
+        }
+        return true;
+      },
     },
   ]);
-  answers.dbTypePG = answers.dbType === 'PostgreSQL';
-  answers.dbTypeSqlite = answers.dbType === 'SQLite';
 
-  const templateDir = paths.resolveOwn('templates/default-app');
+  const templateDir = opts.templatePath
+    ? paths.resolveTarget(opts.templatePath)
+    : paths.resolveOwn('templates/default-app');
   const tempDir = resolvePath(os.tmpdir(), answers.name);
 
   // Use `--path` argument as application directory when specified, otherwise
@@ -73,6 +80,8 @@ export default async (opts: OptionValues): Promise<void> => {
   Task.log('Creating the app...');
 
   try {
+    const gitConfig = await readGitConfig();
+
     if (opts.path) {
       // Template directly to specified path
 
@@ -80,7 +89,10 @@ export default async (opts: OptionValues): Promise<void> => {
       await checkPathExistsTask(appDir);
 
       Task.section('Preparing files');
-      await templatingTask(templateDir, opts.path, answers);
+      await templatingTask(templateDir, opts.path, {
+        ...answers,
+        defaultBranch: gitConfig?.defaultBranch ?? DEFAULT_BRANCH,
+      });
     } else {
       // Template to temporary location, and then move files
 
@@ -91,14 +103,25 @@ export default async (opts: OptionValues): Promise<void> => {
       await createTemporaryAppFolderTask(tempDir);
 
       Task.section('Preparing files');
-      await templatingTask(templateDir, tempDir, answers);
+      await templatingTask(templateDir, tempDir, {
+        ...answers,
+        defaultBranch: gitConfig?.defaultBranch ?? DEFAULT_BRANCH,
+      });
 
       Task.section('Moving to final location');
       await moveAppTask(tempDir, appDir, answers.name);
     }
 
+    if (gitConfig) {
+      if (await tryInitGitRepository(appDir)) {
+        // Since we don't know whether we were able to init git before we
+        // try, we can't track the actual task execution
+        Task.forItem('init', 'git repository', async () => {});
+      }
+    }
+
     if (!opts.skipInstall) {
-      Task.section('Building the app');
+      Task.section('Installing dependencies');
       await buildAppTask(appDir);
     }
 
@@ -108,7 +131,18 @@ export default async (opts: OptionValues): Promise<void> => {
     );
     Task.log();
     Task.section('All set! Now you might want to');
-    Task.log(`  Run the app: ${chalk.cyan(`cd ${answers.name} && yarn dev`)}`);
+    if (!opts.skipInstall) {
+      Task.log(
+        `  Install the dependencies: ${chalk.cyan(
+          `cd ${opts.path ?? answers.name} && yarn install`,
+        )}`,
+      );
+    }
+    Task.log(
+      `  Run the app: ${chalk.cyan(
+        `cd ${opts.path ?? answers.name} && yarn dev`,
+      )}`,
+    );
     Task.log(
       '  Set up the software catalog: https://backstage.io/docs/features/software-catalog/configuration',
     );

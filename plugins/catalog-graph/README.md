@@ -24,9 +24,10 @@ The plugin comes with these features:
 
 To use the catalog graph plugin, you have to add some things to your Backstage app:
 
-1. Add a dependency to your `packages/app/package.json`, run:
+1. Add a dependency to your `packages/app/package.json`:
    ```sh
-    yarn add @backstage/plugin-catalog-graph
+   # From your Backstage root directory
+   yarn add --cwd packages/app @backstage/plugin-catalog-graph
    ```
 2. Add the `CatalogGraphPage` to your `packages/app/src/App.tsx`:
 
@@ -83,3 +84,9 @@ To use the catalog graph plugin, you have to add some things to your Backstage a
      <EntityCatalogGraphCard variant="gridItem" height={400} />
    </Grid>
    ```
+
+## Development
+
+Run `yarn` in the root of this plugin to install all dependencies and then `yarn start` to run a [development version](./dev/index.tsx) of this plugin.
+
+![dev](https://user-images.githubusercontent.com/1190768/167130527-14d787ce-510d-408a-8f93-45bb94b3a9af.png)

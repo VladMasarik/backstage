@@ -6,7 +6,7 @@ description: Adding OAuth2Proxy as an authentication provider in Backstage
 ---
 
 The Backstage `@backstage/plugin-auth-backend` package comes with an
-`oauth2proxy` authentication provider that can authenticate users by using a
+`oauth2Proxy` authentication provider that can authenticate users by using a
 [oauth2-proxy](https://github.com/oauth2-proxy/oauth2-proxy) in front of an
 actual Backstage instance. This enables to reuse existing authentications within
 a cluster. In general the `oauth2-proxy` supports all OpenID Connect providers,
@@ -18,88 +18,69 @@ for more details check this
 The provider configuration can be added to your `app-config.yaml` under the root
 `auth` configuration:
 
-```yaml
+```yaml title="app-config.yaml"
 auth:
   environment: development
   providers:
-    oauth2proxy: {}
+    oauth2Proxy:
+      development: {}
 ```
 
-Right now no configuration options are supported. To make use of the provider,
-make sure that your `oauth2-proxy` is configured correctly and provides a custom
-`X-OAUTH2-PROXY-ID-TOKEN` header. To do so, enable the
-`--set-authorization-header=true` of your `oauth2-proxy` and forward the
-`Authorization` header as `X-OAUTH2-PROXY-ID-TOKEN`. For more details check the
-[configuration docs](https://oauth2-proxy.github.io/oauth2-proxy/configuration).
+Right now no configuration options are supported, but the empty object is needed
+to enable the provider in the auth backend.
 
-_Example for kubernetes ingress:_
+To use the `oauth2Proxy` provider you must also configure it with a sign-in resolver.
+For more information about the sign-in process in general, see the
+[Sign-in Identities and Resolvers](../identity-resolver.md) documentation.
 
-```bash
-# forward the authorization header from the auth request in the X-OAUTH2-PROXY-ID-TOKEN header
-auth_request_set $name_upstream_authorization $upstream_http_authorization;
-proxy_set_header X-OAUTH2-PROXY-ID-TOKEN $name_upstream_authorization;
-```
+For the `oauth2Proxy` provider, the sign-in result is quite different than other providers.
+Because it's a proxy provider that can be configured to forward information through
+arbitrary headers, the auth result simply just gives you access to the HTTP headers
+of the incoming request. Using these you can either extract the information directly,
+or grab ID or access tokens to look up additional information and/or validate the request.
 
-## Adding the provider to the Backstage backend
-
-When using `oauth2proxy` auth you can configure it as described
-[here](https://backstage.io/docs/auth/identity-resolver).
-
-- use the following code below to introduce changes to
-  `packages/backend/plugin/auth.ts`:
+A simple sign-in resolver might for example look like this:
 
 ```ts
-  providerFactories: {
-    oauth2proxy: createOauth2ProxyProvider<{
-      id: string;
-      email: string;
-    }>({
-      authHandler: async input => {
-        const { email } = input.fullProfile;
-
-        return {
-          profile: {
-            email,
-          },
-        };
+providerFactories: {
+  ...defaultAuthProviderFactories,
+  oauth2Proxy: providers.oauth2Proxy.create({
+    signIn: {
+      async resolver({ result }, ctx) {
+        const name = result.getHeader('x-forwarded-user');
+        if (!name) {
+          throw new Error('Request did not contain a user')
+        }
+        return ctx.signInWithCatalogUser({
+          entityRef: { name },
+        });
       },
-      signIn: {
-        resolver: async (signInInfo, ctx) => {
-          const { preferred_username: id } = signInInfo.result.fullProfile;
-          const sub = `user:default/${id}`;
-
-          const token = await ctx.tokenIssuer.issueToken({
-            claims: { sub, ent: [`group:default/optional-user-group`] },
-          });
-
-          return { id, token };
-        },
-      },
-    }),
-  }
+    },
+  }),
+},
 ```
+
+[An example on how to sign a user in without a matching user](https://github.com/backstage/backstage/blob/master/packages/backend/src/plugins/auth.ts)
 
 ## Adding the provider to the Backstage frontend
 
-All Backstage apps need a `SignInPage` to be configured. Its purpose is to
-establish who the user is and what their identifying credentials are, blocking
-rendering the rest of the UI until that's complete, and then keeping those
-credentials fresh.
+It is recommended to use the `ProxiedSignInPage` for this provider, which is
+installed in `packages/app/src/App.tsx` like this:
 
-When using the OAuth2-Proxy, the Backstage UI can only be accessed after the
-user has already been authenticated at the proxy. Instead of showing the user
-another login page when accessing Backstage, it will handle the login in the
-background. Backstage provides for this case the `ProxiedSignInPage` component
-which has no UI.
+```tsx title="packages/app/src/App.tsx"
+/* highlight-add-next-line */
+import { ProxiedSignInPage } from '@backstage/core-components';
 
-Update your `createApp` call in `packages/app/src/App.tsx`, as follows.
-
-```diff
-+import { ProxiedSignInPage } from '@backstage/core-components';
- const app = createApp({
-   components: {
-+    SignInPage: props => <ProxiedSignInPage {...props} provider="oauth2proxy" />,
+const app = createApp({
+  /* highlight-add-start */
+  components: {
+    SignInPage: props => (
+      <ProxiedSignInPage {...props} provider="oauth2Proxy" />
+    ),
+  },
+  /* highlight-add-end */
+  // ..
+});
 ```
 
-After this, your app should be ready to leverage the OAuth2-Proxy for
-authentication!
+See [Sign-In with Proxy Providers](../index.md#sign-in-with-proxy-providers) for pointers on how to set up the sign-in page to also work smoothly for local development.

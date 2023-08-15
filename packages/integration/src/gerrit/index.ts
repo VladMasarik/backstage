@@ -19,10 +19,14 @@ export {
   readGerritIntegrationConfigs,
 } from './config';
 export {
+  buildGerritGitilesArchiveUrl,
+  getGerritBranchApiUrl,
+  getGerritCloneRepoUrl,
   getGerritFileContentsApiUrl,
   getGerritProjectsApiUrl,
   getGerritRequestOptions,
   parseGerritJsonResponse,
+  parseGerritGitilesUrl,
 } from './core';
 
 export type { GerritIntegrationConfig } from './config';

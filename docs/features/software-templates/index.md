@@ -58,6 +58,10 @@ It shouldn't take too long, and you'll have a success screen!
 If it fails, you'll be able to click on each section to get the log from the
 step that failed which can be helpful in debugging.
 
+You can also cancel the running process. Once you clicked on button "Cancel", the abort signal
+will be sent to a task and all next steps won't be executed. The current step will be cancelled
+only if it supports it.
+
 ![Templating failed](../../assets/software-templates/failed.png)
 
 ## View Component in Catalog
@@ -70,3 +74,27 @@ you to the registered component in the catalog:
 And then you'll also be able to see it in the Catalog View table:
 
 ![Catalog](../../assets/software-templates/added-to-the-catalog-list.png)
+
+## Disable Register Existing Component button
+
+There could be situations where you would like to disable the
+`Register Existing Component` button for your users. For example:
+
+![Disable Button](../../assets/software-templates/disable-register-existing-component-button.png)
+
+To do so, you will un-register / remove the `catalogImportPlugin.routes.importPage`
+from `backstage/packages/app/src/App.tsx`:
+
+```diff
+ const app = createApp({
+   apis,
+   bindRoutes({ bind }) {
+-    bind(scaffolderPlugin.externalRoutes, {
+-      registerComponent: catalogImportPlugin.routes.importPage,
+-    });
+     bind(orgPlugin.externalRoutes, {
+       catalogIndex: catalogPlugin.routes.catalogIndex,
+     });
+```
+
+After the change, you should no longer see the button.

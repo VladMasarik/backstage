@@ -15,8 +15,8 @@
  */
 
 const mockRailsTemplater = { run: jest.fn() };
-jest.mock('@backstage/plugin-scaffolder-backend', () => ({
-  ...jest.requireActual('@backstage/plugin-scaffolder-backend'),
+jest.mock('@backstage/plugin-scaffolder-node', () => ({
+  ...jest.requireActual('@backstage/plugin-scaffolder-node'),
   fetchContents: jest.fn(),
 }));
 jest.mock('./railsNewRunner', () => {
@@ -39,7 +39,7 @@ import os from 'os';
 import { resolve as resolvePath } from 'path';
 import { PassThrough } from 'stream';
 import { createFetchRailsAction } from './index';
-import { fetchContents } from '@backstage/plugin-scaffolder-backend';
+import { fetchContents } from '@backstage/plugin-scaffolder-node';
 
 describe('fetch:rails', () => {
   const integrations = ScmIntegrations.fromConfig(
@@ -74,7 +74,7 @@ describe('fetch:rails', () => {
   };
 
   const mockReader: UrlReader = {
-    read: jest.fn(),
+    readUrl: jest.fn(),
     readTree: jest.fn(),
     search: jest.fn(),
   };
@@ -86,11 +86,12 @@ describe('fetch:rails', () => {
     integrations,
     reader: mockReader,
     containerRunner,
+    allowedImageNames: ['foo/rails-custom-image'],
   });
 
   beforeEach(() => {
     mockFs({ [`${mockContext.workspacePath}/result`]: {} });
-    jest.restoreAllMocks();
+    jest.clearAllMocks();
   });
 
   afterEach(() => {
@@ -136,6 +137,35 @@ describe('fetch:rails', () => {
         imageName: 'foo/rails-custom-image',
       },
     });
+  });
+
+  it('should not allow unknown images', async () => {
+    await expect(
+      action.handler({
+        ...mockContext,
+        input: {
+          ...mockContext.input,
+          imageName: 'foo/bar',
+        },
+      }),
+    ).rejects.toThrow('Image foo/bar is not allowed');
+  });
+
+  it('should not allow any images', async () => {
+    const action2 = createFetchRailsAction({
+      integrations,
+      reader: mockReader,
+      containerRunner,
+    });
+    await expect(
+      action2.handler({
+        ...mockContext,
+        input: {
+          ...mockContext.input,
+          imageName: 'foo/rails-custom-image',
+        },
+      }),
+    ).rejects.toThrow('Image foo/rails-custom-image is not allowed');
   });
 
   it('should throw if the target directory is outside of the workspace path', async () => {

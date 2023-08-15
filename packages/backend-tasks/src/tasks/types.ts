@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Duration } from 'luxon';
-import { AbortSignal } from 'node-abort-controller';
-import { z } from 'zod';
+import { HumanDuration, JsonObject } from '@backstage/types';
 import { CronTime } from 'cron';
+import { Duration } from 'luxon';
+import { z } from 'zod';
 
 /**
  * A function that can be called as a scheduled task.
@@ -32,6 +32,28 @@ export type TaskFunction =
   | (() => void | Promise<void>);
 
 /**
+ * A semi-opaque type to describe an actively scheduled task.
+ *
+ * @public
+ */
+export type TaskDescriptor = {
+  /**
+   * The unique identifier of the task.
+   */
+  id: string;
+  /**
+   * The scope of the task.
+   */
+  scope: 'global' | 'local';
+  /**
+   * The settings that control the task flow. This is a semi-opaque structure
+   * that is mainly there for debugging purposes. Do not make any assumptions
+   * about the contents of this field.
+   */
+  settings: { version: number } & JsonObject;
+};
+
+/**
  * Options that control the scheduling of a task.
  *
  * @public
@@ -43,7 +65,7 @@ export interface TaskScheduleDefinition {
    *
    * @remarks
    *
-   * This is a best effort value; under some circumstances there can be
+   * This is the best effort value; under some circumstances there can be
    * deviations. For example, if the task runtime is longer than the frequency
    * and the timeout has not been given or not been exceeded yet, the next
    * invocation of this task will be delayed until after the previous one
@@ -74,14 +96,15 @@ export interface TaskScheduleDefinition {
          */
         cron: string;
       }
-    | Duration;
+    | Duration
+    | HumanDuration;
 
   /**
    * The maximum amount of time that a single task invocation can take, before
    * it's considered timed out and gets "released" such that a new invocation
    * is permitted to take place (possibly, then, on a different worker).
    */
-  timeout: Duration;
+  timeout: Duration | HumanDuration;
 
   /**
    * The amount of time that should pass before the first invocation happens.
@@ -93,14 +116,134 @@ export interface TaskScheduleDefinition {
    * will happen as soon as possible according to the cadence.
    *
    * NOTE: This is a per-worker delay. If you have a cluster of workers all
-   * collaborating on a task, then you may still see the task being processed by
-   * other long-lived workers, while any given single worker is in its initial
-   * sleep delay time e.g. after a deployment. Therefore this parameter is not
-   * useful for "globally" pausing work; its main intended use is for individual
-   * machines to get a chance to reach some equilibrium at startup before
-   * triggering heavy batch workloads.
+   * collaborating on a task that has its `scope` field set to `'global'`, then
+   * you may still see the task being processed by other long-lived workers,
+   * while any given single worker is in its initial sleep delay time e.g. after
+   * a deployment. Therefore, this parameter is not useful for "globally" pausing
+   * work; its main intended use is for individual machines to get a chance to
+   * reach some equilibrium at startup before triggering heavy batch workloads.
    */
-  initialDelay?: Duration;
+  initialDelay?: Duration | HumanDuration;
+
+  /**
+   * Sets the scope of concurrency control / locking to apply for invocations of
+   * this task.
+   *
+   * @remarks
+   *
+   * When the scope is set to the default value `'global'`, the scheduler will
+   * attempt to ensure that only one worker machine runs the task at a time,
+   * according to the given cadence. This means that as the number of worker
+   * hosts increases, the invocation frequency of this task will not go up.
+   * Instead, the load is spread randomly across hosts. This setting is useful
+   * for tasks that access shared resources, for example catalog ingestion tasks
+   * where you do not want many machines to repeatedly import the same data and
+   * trample over each other.
+   *
+   * When the scope is set to `'local'`, there is no concurrency control across
+   * hosts. Each host runs the task according to the given cadence similarly to
+   * `setInterval`, but the runtime ensures that there are no overlapping runs.
+   *
+   * @defaultValue 'global'
+   */
+  scope?: 'global' | 'local';
+}
+
+/**
+ * Config options for {@link TaskScheduleDefinition}
+ * that control the scheduling of a task.
+ *
+ * @public
+ */
+export interface TaskScheduleDefinitionConfig {
+  /**
+   * How often you want the task to run. The system does its best to avoid
+   * overlapping invocations.
+   *
+   * @remarks
+   *
+   * This is the best effort value; under some circumstances there can be
+   * deviations. For example, if the task runtime is longer than the frequency
+   * and the timeout has not been given or not been exceeded yet, the next
+   * invocation of this task will be delayed until after the previous one
+   * finishes.
+   *
+   * This is a required field.
+   */
+  frequency:
+    | {
+        /**
+         * A crontab style string.
+         *
+         * @remarks
+         *
+         * Overview:
+         *
+         * ```
+         *   ┌────────────── second (optional)
+         *   │ ┌──────────── minute
+         *   │ │ ┌────────── hour
+         *   │ │ │ ┌──────── day of month
+         *   │ │ │ │ ┌────── month
+         *   │ │ │ │ │ ┌──── day of week
+         *   │ │ │ │ │ │
+         *   │ │ │ │ │ │
+         *   * * * * * *
+         * ```
+         */
+        cron: string;
+      }
+    | string
+    | HumanDuration;
+
+  /**
+   * The maximum amount of time that a single task invocation can take, before
+   * it's considered timed out and gets "released" such that a new invocation
+   * is permitted to take place (possibly, then, on a different worker).
+   */
+  timeout: string | HumanDuration;
+
+  /**
+   * The amount of time that should pass before the first invocation happens.
+   *
+   * @remarks
+   *
+   * This can be useful in cold start scenarios to stagger or delay some heavy
+   * compute jobs. If no value is given for this field then the first invocation
+   * will happen as soon as possible according to the cadence.
+   *
+   * NOTE: This is a per-worker delay. If you have a cluster of workers all
+   * collaborating on a task that has its `scope` field set to `'global'`, then
+   * you may still see the task being processed by other long-lived workers,
+   * while any given single worker is in its initial sleep delay time e.g. after
+   * a deployment. Therefore, this parameter is not useful for "globally" pausing
+   * work; its main intended use is for individual machines to get a chance to
+   * reach some equilibrium at startup before triggering heavy batch workloads.
+   */
+  initialDelay?: string | HumanDuration;
+
+  /**
+   * Sets the scope of concurrency control / locking to apply for invocations of
+   * this task.
+   *
+   * @remarks
+   *
+   * When the scope is set to the default value `'global'`, the scheduler will
+   * attempt to ensure that only one worker machine runs the task at a time,
+   * according to the given cadence. This means that as the number of worker
+   * hosts increases, the invocation frequency of this task will not go up.
+   * Instead, the load is spread randomly across hosts. This setting is useful
+   * for tasks that access shared resources, for example catalog ingestion tasks
+   * where you do not want many machines to repeatedly import the same data and
+   * trample over each other.
+   *
+   * When the scope is set to `'local'`, there is no concurrency control across
+   * hosts. Each host runs the task according to the given cadence similarly to
+   * `setInterval`, but the runtime ensures that there are no overlapping runs.
+   *
+   * @defaultValue 'global'
+   */
+  scope?: 'global' | 'local';
 }
 
 /**
@@ -149,24 +292,23 @@ export interface PluginTaskScheduler {
   /**
    * Manually triggers a task by ID.
    *
-   * If the task doesn't exist, a NotFoundError is thrown.
-   * If the task is currently running, a ConflictError is thrown.
+   * If the task doesn't exist, a NotFoundError is thrown. If the task is
+   * currently running, a ConflictError is thrown.
    *
    * @param id - The task ID
-   *
    */
   triggerTask(id: string): Promise<void>;
 
   /**
-   * Schedules a task function for coordinated exclusive invocation across
-   * workers. This convenience method performs both the scheduling and
-   * invocation in one go.
+   * Schedules a task function for recurring runs.
    *
    * @remarks
    *
-   * If the task was already scheduled since before by us or by another party,
-   * its options are just overwritten with the given options, and things
-   * continue from there.
+   * The `scope` task field controls whether to use coordinated exclusive
+   * invocation across workers, or to just coordinate within the current worker.
+   *
+   * This convenience method performs both the scheduling and invocation in one
+   * go.
    *
    * @param task - The task definition
    */
@@ -187,6 +329,19 @@ export interface PluginTaskScheduler {
    * @param schedule - The task schedule
    */
   createScheduledTaskRunner(schedule: TaskScheduleDefinition): TaskRunner;
+
+  /**
+   * Returns all scheduled tasks registered to this scheduler.
+   *
+   * @remarks
+   *
+   * This method is useful for triggering tasks manually using the triggerTask
+   * functionality. Note that the returned tasks contain only tasks that have
+   * been initialized in this instance of the scheduler.
+   *
+   * @returns Scheduled tasks
+   */
+  getScheduledTasks(): Promise<TaskDescriptor[]>;
 }
 
 function isValidOptionalDurationString(d: string | undefined): boolean {

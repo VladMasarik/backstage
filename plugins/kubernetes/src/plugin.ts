@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import { KubernetesBackendClient } from './api/KubernetesBackendClient';
-import { kubernetesApiRef } from './api/types';
+import { kubernetesApiRef, kubernetesProxyApiRef } from './api/types';
 import { kubernetesAuthProvidersApiRef } from './kubernetes-auth-provider/types';
 import { KubernetesAuthProviders } from './kubernetes-auth-provider/KubernetesAuthProviders';
 import {
@@ -23,9 +23,14 @@ import {
   createRouteRef,
   discoveryApiRef,
   identityApiRef,
+  gitlabAuthApiRef,
   googleAuthApiRef,
+  microsoftAuthApiRef,
+  oktaAuthApiRef,
+  oneloginAuthApiRef,
   createRoutableExtension,
 } from '@backstage/core-plugin-api';
+import { KubernetesProxyClient } from './api';
 
 export const rootCatalogKubernetesRouteRef = createRouteRef({
   id: 'kubernetes',
@@ -39,15 +44,54 @@ export const kubernetesPlugin = createPlugin({
       deps: {
         discoveryApi: discoveryApiRef,
         identityApi: identityApiRef,
+        kubernetesAuthProvidersApi: kubernetesAuthProvidersApiRef,
       },
-      factory: ({ discoveryApi, identityApi }) =>
-        new KubernetesBackendClient({ discoveryApi, identityApi }),
+      factory: ({ discoveryApi, identityApi, kubernetesAuthProvidersApi }) =>
+        new KubernetesBackendClient({
+          discoveryApi,
+          identityApi,
+          kubernetesAuthProvidersApi,
+        }),
+    }),
+    createApiFactory({
+      api: kubernetesProxyApiRef,
+      deps: {
+        kubernetesApi: kubernetesApiRef,
+      },
+      factory: ({ kubernetesApi }) =>
+        new KubernetesProxyClient({
+          kubernetesApi,
+        }),
     }),
     createApiFactory({
       api: kubernetesAuthProvidersApiRef,
-      deps: { googleAuthApi: googleAuthApiRef },
-      factory: ({ googleAuthApi }) => {
-        return new KubernetesAuthProviders({ googleAuthApi });
+      deps: {
+        gitlabAuthApi: gitlabAuthApiRef,
+        googleAuthApi: googleAuthApiRef,
+        microsoftAuthApi: microsoftAuthApiRef,
+        oktaAuthApi: oktaAuthApiRef,
+        oneloginAuthApi: oneloginAuthApiRef,
+      },
+      factory: ({
+        gitlabAuthApi,
+        googleAuthApi,
+        microsoftAuthApi,
+        oktaAuthApi,
+        oneloginAuthApi,
+      }) => {
+        const oidcProviders = {
+          gitlab: gitlabAuthApi,
+          google: googleAuthApi,
+          microsoft: microsoftAuthApi,
+          okta: oktaAuthApi,
+          onelogin: oneloginAuthApi,
+        };
+
+        return new KubernetesAuthProviders({
+          microsoftAuthApi,
+          googleAuthApi,
+          oidcProviders,
+        });
       },
     }),
   ],
@@ -56,7 +100,21 @@ export const kubernetesPlugin = createPlugin({
   },
 });
 
-export const EntityKubernetesContent = kubernetesPlugin.provide(
+/**
+ * Props of EntityKubernetesContent
+ *
+ * @public
+ */
+export type EntityKubernetesContentProps = {
+  /**
+   * Sets the refresh interval in milliseconds. The default value is 10000 (10 seconds)
+   */
+  refreshIntervalMs?: number;
+};
+
+export const EntityKubernetesContent: (
+  props: EntityKubernetesContentProps,
+) => JSX.Element = kubernetesPlugin.provide(
   createRoutableExtension({
     name: 'EntityKubernetesContent',
     component: () => import('./Router').then(m => m.Router),

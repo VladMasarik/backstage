@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import { renderInTestApp } from '@backstage/test-utils';
 import React from 'react';
 import { EntityKindIcon } from './EntityKindIcon';
@@ -23,7 +24,7 @@ describe('<EntityKindIcon />', () => {
       <EntityKindIcon kind="Component" />,
     );
 
-    expect(baseElement.querySelector('.MuiSvgIcon-root')).toBeInTheDocument();
+    expect(baseElement.querySelector('svg')).toBeInTheDocument();
   });
 
   it('renders without exploding for unknown kind', async () => {
@@ -31,6 +32,6 @@ describe('<EntityKindIcon />', () => {
       <EntityKindIcon kind="unknown" />,
     );
 
-    expect(baseElement.querySelector('.MuiSvgIcon-root')).toBeInTheDocument();
+    expect(baseElement.querySelector('svg')).toBeInTheDocument();
   });
 });

@@ -20,7 +20,7 @@ import { useTechDocsReaderPage } from './context';
 /**
  * Hook for use within TechDocs addons that provides access to the underlying
  * shadow root of the current page, allowing the DOM within to be mutated.
- * @alpha
+ * @public
  */
 export const useShadowRoot = () => {
   const { shadowRoot } = useTechDocsReaderPage();
@@ -31,7 +31,7 @@ export const useShadowRoot = () => {
  * Convenience hook for use within TechDocs addons that provides access to
  * elements that match a given selector within the shadow root.
  *
- * @alpha
+ * @public
  */
 export const useShadowRootElements = <
   TReturnedElement extends HTMLElement = HTMLElement,
@@ -57,10 +57,10 @@ const isValidSelection = (newSelection: Selection) => {
 };
 
 /**
- * Hook for retreiving a selection within the ShadowRoot.
- * @alpha
+ * Hook for retrieving a selection within the ShadowRoot.
+ * @public
  */
-export const useShadowRootSelection = (wait: number = 0) => {
+export const useShadowRootSelection = (waitMillis: number = 0) => {
   const shadowRoot = useShadowRoot();
   const [selection, setSelection] = useState<Selection | null>(null);
   const handleSelectionChange = useMemo(
@@ -78,17 +78,19 @@ export const useShadowRootSelection = (wait: number = 0) => {
         } else {
           setSelection(null);
         }
-      }, wait),
-    [shadowRoot, setSelection, wait],
+      }, waitMillis),
+    [shadowRoot, setSelection, waitMillis],
   );
 
   useEffect(() => {
     window.document.addEventListener('selectionchange', handleSelectionChange);
-    return () =>
+    return () => {
+      handleSelectionChange.cancel();
       window.document.removeEventListener(
         'selectionchange',
         handleSelectionChange,
       );
+    };
   }, [handleSelectionChange]);
 
   return selection;

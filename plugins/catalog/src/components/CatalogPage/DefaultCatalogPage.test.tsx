@@ -15,12 +15,7 @@
  */
 
 import { CatalogApi } from '@backstage/catalog-client';
-import {
-  Entity,
-  parseEntityRef,
-  RELATION_MEMBER_OF,
-  RELATION_OWNED_BY,
-} from '@backstage/catalog-model';
+import { RELATION_OWNED_BY } from '@backstage/catalog-model';
 import { TableColumn, TableProps } from '@backstage/core-components';
 import {
   IdentityApi,
@@ -31,9 +26,10 @@ import {
 import {
   catalogApiRef,
   entityRouteRef,
-  starredEntitiesApiRef,
   MockStarredEntitiesApi,
+  starredEntitiesApiRef,
 } from '@backstage/plugin-catalog-react';
+import { MockPluginProvider } from '@backstage/test-utils/alpha';
 import {
   mockBreakpoint,
   MockStorageApi,
@@ -66,6 +62,7 @@ describe('DefaultCatalogPage', () => {
             kind: 'Component',
             metadata: {
               name: 'Entity1',
+              namespace: 'default',
             },
             spec: {
               owner: 'tools',
@@ -100,24 +97,18 @@ describe('DefaultCatalogPage', () => {
               },
             ],
           },
-        ] as Entity[],
+        ],
       }),
     getLocationByRef: () =>
       Promise.resolve({ id: 'id', type: 'url', target: 'url' }),
-    getEntityByRef: async entityRef => {
-      return {
-        apiVersion: 'backstage.io/v1alpha1',
-        kind: 'User',
-        metadata: { name: parseEntityRef(entityRef).name },
-        relations: [
-          {
-            type: RELATION_MEMBER_OF,
-            targetRef: 'group:default/tools',
-            target: { namespace: 'default', kind: 'Group', name: 'tools' },
-          },
+    getEntityFacets: async () => ({
+      facets: {
+        'relations.ownedBy': [
+          { count: 1, value: 'group:default/not-tools' },
+          { count: 1, value: 'group:default/tools' },
         ],
-      };
-    },
+      },
+    }),
   };
   const testProfile: Partial<ProfileInfo> = {
     displayName: 'Display Name',
@@ -144,7 +135,7 @@ describe('DefaultCatalogPage', () => {
             [starredEntitiesApiRef, new MockStarredEntitiesApi()],
           ]}
         >
-          {children}
+          <MockPluginProvider>{children}</MockPluginProvider>
         </TestApiProvider>,
         {
           mountedRoutes: {
@@ -160,11 +151,11 @@ describe('DefaultCatalogPage', () => {
   // limit. We should investigate why these timeouts happen.
 
   it('should render the default column of the grid', async () => {
-    const { getAllByRole } = await renderWrapped(<DefaultCatalogPage />);
+    await renderWrapped(<DefaultCatalogPage />);
 
-    const columnHeader = getAllByRole('button').filter(
-      c => c.tagName === 'SPAN',
-    );
+    const columnHeader = screen
+      .getAllByRole('button')
+      .filter(c => c.tagName === 'SPAN');
     const columnHeaderLabels = columnHeader.map(c => c.textContent);
 
     expect(columnHeaderLabels).toEqual([
@@ -185,26 +176,26 @@ describe('DefaultCatalogPage', () => {
       { title: 'Bar', field: 'entity.bar' },
       { title: 'Baz', field: 'entity.spec.lifecycle' },
     ];
-    const { getAllByRole } = await renderWrapped(
-      <DefaultCatalogPage columns={columns} />,
-    );
+    await renderWrapped(<DefaultCatalogPage columns={columns} />);
 
-    const columnHeader = getAllByRole('button').filter(
-      c => c.tagName === 'SPAN',
-    );
+    const columnHeader = screen
+      .getAllByRole('button')
+      .filter(c => c.tagName === 'SPAN');
     const columnHeaderLabels = columnHeader.map(c => c.textContent);
     expect(columnHeaderLabels).toEqual(['Foo', 'Bar', 'Baz', 'Actions']);
   }, 20_000);
 
   it('should render the default actions of an item in the grid', async () => {
-    const { getByTestId, findByTitle, findByText } = await renderWrapped(
-      <DefaultCatalogPage />,
-    );
-    fireEvent.click(getByTestId('user-picker-owned'));
-    expect(await findByText(/Owned \(1\)/)).toBeInTheDocument();
-    expect(await findByTitle(/View/)).toBeInTheDocument();
-    expect(await findByTitle(/Edit/)).toBeInTheDocument();
-    expect(await findByTitle(/Add to favorites/)).toBeInTheDocument();
+    await renderWrapped(<DefaultCatalogPage />);
+    fireEvent.click(screen.getByTestId('user-picker-owned'));
+    await expect(
+      screen.findByText(/Owned components \(1\)/),
+    ).resolves.toBeInTheDocument();
+    await expect(screen.findByTitle(/View/)).resolves.toBeInTheDocument();
+    await expect(screen.findByTitle(/Edit/)).resolves.toBeInTheDocument();
+    await expect(
+      screen.findByTitle(/Add to favorites/),
+    ).resolves.toBeInTheDocument();
   }, 20_000);
 
   it('should render the custom actions of an item passed as prop', async () => {
@@ -227,73 +218,85 @@ describe('DefaultCatalogPage', () => {
       },
     ];
 
-    const { getByTestId, findByTitle, findByText } = await renderWrapped(
-      <DefaultCatalogPage actions={actions} />,
-    );
-    fireEvent.click(getByTestId('user-picker-owned'));
-    expect(await findByText(/Owned \(1\)/)).toBeInTheDocument();
-    expect(await findByTitle(/Foo Action/)).toBeInTheDocument();
-    expect(await findByTitle(/Bar Action/)).toBeInTheDocument();
-    expect((await findByTitle(/Bar Action/)).firstChild).toBeDisabled();
+    await renderWrapped(<DefaultCatalogPage actions={actions} />);
+    fireEvent.click(screen.getByTestId('user-picker-owned'));
+    await expect(
+      screen.findByText(/Owned components \(1\)/),
+    ).resolves.toBeInTheDocument();
+    await expect(screen.findByTitle(/Foo Action/)).resolves.toBeInTheDocument();
+    await expect(screen.findByTitle(/Bar Action/)).resolves.toBeInTheDocument();
+    await expect(
+      screen.findByTitle(/Bar Action/).then(e => e.firstChild),
+    ).resolves.toBeDisabled();
   }, 20_000);
 
   // this test right now causes some red lines in the log output when running tests
   // related to some theme issues in mui-table
   // https://github.com/mbrn/material-table/issues/1293
   it('should render', async () => {
-    const { findByText, getByTestId } = await renderWrapped(
-      <DefaultCatalogPage />,
-    );
-    fireEvent.click(getByTestId('user-picker-owned'));
-    await expect(findByText(/Owned \(1\)/)).resolves.toBeInTheDocument();
-    fireEvent.click(getByTestId('user-picker-all'));
-    await expect(findByText(/All \(2\)/)).resolves.toBeInTheDocument();
+    await renderWrapped(<DefaultCatalogPage />);
+    fireEvent.click(screen.getByTestId('user-picker-owned'));
+    await expect(
+      screen.findByText(/Owned components \(1\)/),
+    ).resolves.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('user-picker-all'));
+    await expect(
+      screen.findByText(/All components \(2\)/),
+    ).resolves.toBeInTheDocument();
   }, 20_000);
 
   it('should set initial filter correctly', async () => {
-    const { findByText } = await renderWrapped(
-      <DefaultCatalogPage initiallySelectedFilter="all" />,
-    );
-    await expect(findByText(/All \(2\)/)).resolves.toBeInTheDocument();
+    await renderWrapped(<DefaultCatalogPage initiallySelectedFilter="all" />);
+    await expect(
+      screen.findByText(/All components \(2\)/),
+    ).resolves.toBeInTheDocument();
   }, 20_000);
 
   // this test is for fixing the bug after favoriting an entity, the matching
   // entities defaulting to "owned" filter and not based on the selected filter
   it('should render the correct entities filtered on the selected filter', async () => {
-    const { getByTestId } = await renderWrapped(<DefaultCatalogPage />);
-    fireEvent.click(getByTestId('user-picker-owned'));
-    await expect(screen.findByText(/Owned \(1\)/)).resolves.toBeInTheDocument();
+    await renderWrapped(<DefaultCatalogPage />);
+    fireEvent.click(screen.getByTestId('user-picker-owned'));
+    await expect(
+      screen.findByText(/Owned components \(1\)/),
+    ).resolves.toBeInTheDocument();
     // The "Starred" menu option should initially be disabled, since there
     // aren't any starred entities.
-    await expect(screen.getByTestId('user-picker-starred')).toHaveAttribute(
+    expect(screen.getByTestId('user-picker-starred')).toHaveAttribute(
       'aria-disabled',
       'true',
     );
     fireEvent.click(screen.getByTestId('user-picker-all'));
-    await expect(screen.findByText(/All \(2\)/)).resolves.toBeInTheDocument();
+    await expect(
+      screen.findByText(/All components \(2\)/),
+    ).resolves.toBeInTheDocument();
 
     const starredIcons = await screen.findAllByTitle('Add to favorites');
     fireEvent.click(starredIcons[0]);
-    await expect(screen.findByText(/All \(2\)/)).resolves.toBeInTheDocument();
+    await expect(
+      screen.findByText(/All components \(2\)/),
+    ).resolves.toBeInTheDocument();
 
     // Now that we've starred an entity, the "Starred" menu option should be
     // enabled.
-    await expect(screen.getByTestId('user-picker-starred')).not.toHaveAttribute(
+    expect(screen.getByTestId('user-picker-starred')).not.toHaveAttribute(
       'aria-disabled',
       'true',
     );
     fireEvent.click(screen.getByTestId('user-picker-starred'));
     await expect(
-      screen.findByText(/Starred \(1\)/),
+      screen.findByText(/Starred components \(1\)/),
     ).resolves.toBeInTheDocument();
   }, 20_000);
 
   it('should wrap filter in drawer on smaller screens', async () => {
     mockBreakpoint({ matches: true });
-    const { getByRole } = await renderWrapped(<DefaultCatalogPage />);
-    const button = getByRole('button', { name: 'Filters' });
-    expect(getByRole('presentation', { hidden: true })).toBeInTheDocument();
+    await renderWrapped(<DefaultCatalogPage />);
+    const button = screen.getByRole('button', { name: 'Filters' });
+    expect(
+      screen.getByRole('presentation', { hidden: true }),
+    ).toBeInTheDocument();
     fireEvent.click(button);
-    expect(getByRole('presentation')).toBeVisible();
+    expect(screen.getByRole('presentation')).toBeVisible();
   }, 20_000);
 });

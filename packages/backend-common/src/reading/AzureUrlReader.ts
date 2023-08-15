@@ -37,9 +37,10 @@ import {
   ReadUrlOptions,
   ReadUrlResponse,
 } from './types';
+import { ReadUrlResponseFactory } from './ReadUrlResponseFactory';
 
 /**
- * Implements a {@link UrlReader} for Azure repos.
+ * Implements a {@link @backstage/backend-plugin-api#UrlReaderService} for Azure repos.
  *
  * @public
  */
@@ -75,7 +76,7 @@ export class AzureUrlReader implements UrlReader {
     let response: Response;
     try {
       response = await fetch(builtUrl, {
-        ...getAzureRequestOptions(this.integration.config),
+        ...(await getAzureRequestOptions(this.integration.config)),
         // TODO(freben): The signal cast is there because pre-3.x versions of
         // node-fetch have a very slightly deviating AbortSignal type signature.
         // The difference does not affect us in practice however. The cast can
@@ -90,9 +91,7 @@ export class AzureUrlReader implements UrlReader {
 
     // for private repos when PAT is not valid, Azure API returns a http status code 203 with sign in page html
     if (response.ok && response.status !== 203) {
-      return {
-        buffer: async () => Buffer.from(await response.arrayBuffer()),
-      };
+      return ReadUrlResponseFactory.fromNodeJSReadable(response.body);
     }
 
     const message = `${url} could not be read as ${builtUrl}, ${response.status} ${response.statusText}`;
@@ -114,7 +113,7 @@ export class AzureUrlReader implements UrlReader {
 
     const commitsAzureResponse = await fetch(
       getAzureCommitsUrl(url),
-      getAzureRequestOptions(this.integration.config),
+      await getAzureRequestOptions(this.integration.config),
     );
     if (!commitsAzureResponse.ok) {
       const message = `Failed to read tree from ${url}, ${commitsAzureResponse.status} ${commitsAzureResponse.statusText}`;
@@ -130,9 +129,9 @@ export class AzureUrlReader implements UrlReader {
     }
 
     const archiveAzureResponse = await fetch(getAzureDownloadUrl(url), {
-      ...getAzureRequestOptions(this.integration.config, {
+      ...(await getAzureRequestOptions(this.integration.config, {
         Accept: 'application/zip',
-      }),
+      })),
       // TODO(freben): The signal cast is there because pre-3.x versions of
       // node-fetch have a very slightly deviating AbortSignal type signature.
       // The difference does not affect us in practice however. The cast can be
@@ -159,7 +158,7 @@ export class AzureUrlReader implements UrlReader {
     }
 
     return await this.deps.treeResponseFactory.fromZipArchive({
-      stream: archiveAzureResponse.body as unknown as Readable,
+      stream: Readable.from(archiveAzureResponse.body),
       etag: commitSha,
       filter,
       subpath,
@@ -193,6 +192,7 @@ export class AzureUrlReader implements UrlReader {
           base: url,
         }),
         content: file.content,
+        lastModifiedAt: file.lastModifiedAt,
       })),
     };
   }
